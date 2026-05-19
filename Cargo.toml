@@ -1,37 +1,20 @@
 [workspace]
 resolver = "2"
-default-members = ["crates/*"]
 members = [
-    "crates/*",
     "contracts/registry",
     "contracts/test/*",
-    "crates/stellar-scaffold-test/fixtures/contracts/*",
 ]
 
 [workspace.package]
-repository = "https://github.com/theahaco/scaffold-stellar"
+repository = "https://github.com/stellar-registry/contracts"
 
 [workspace.dependencies]
-stellar-scaffold-macro = { path = "crates/stellar-scaffold-macro" }
-stellar-registry = { path = "crates/stellar-registry" }
-stellar-scaffold-test = { path = "crates/stellar-scaffold-test" }
-stellar-scaffold-ext-types = { path = "crates/stellar-scaffold-ext-types", version = "0.0.2" }
-
-stellar-cli = { version = "26.0.0", package = "soroban-cli", default-features = false }
-soroban-rpc = { package = "stellar-rpc-client", version = "26.0.0-rc.1" }
-soroban-spec-tools = "26.0.0"
+# Cross-repo dev-dep from stellar-registry/cli
+stellar-registry = "0.0.10"
 
 soroban-sdk = "25.3.1"
 admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
 stellar-xdr = "=26.0.0"
-stellar-strkey = "0.0.15"
-
-cargo_metadata = "0.18.1"
-thiserror = "2.0.17"
-sha2 = "0.10.9"
-
-clap = "4.6.1"
-reqwest = { version = "0.12.9", default-features = false }
 
 [profile.contracts]
 inherits = "release"
