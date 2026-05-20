@@ -4,80 +4,60 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Scaffold Stellar is a developer toolkit for building dApps and smart contracts on the Stellar blockchain. It provides two Stellar CLI plugins:
-- **stellar-scaffold** (`crates/stellar-scaffold-cli`) - Project scaffolding, building, and frontend generation
-- **stellar-registry** (`crates/stellar-registry-cli`) - Publishing and deploying contracts via an on-chain registry
+This repo holds the **on-chain Stellar Registry contracts** (Soroban smart contracts). It is one of several repos split out of the original `scaffold-stellar` monorepo. The registry manages wasm publication (with semantic versioning) and the deployment of named contract instances.
+
+Related repos:
+- `stellar-registry/cli` — the `stellar registry` CLI that interacts with these contracts
+- `stellar-registry/ui` — registry frontend
+- `stellar-registry/indexer` — registry indexer & API
 
 ## Common Commands
 
 ```bash
-# Setup development environment (installs stellar-cli v26.0.0)
+# Install the pinned stellar-cli (v26.0.0) into ./target/bin and set up git hooks
 just setup
 
-# Build contracts and optimize registry wasm
-just build
+# Build all contracts with the size-optimized profile
+stellar contract build --profile contracts
 
-# Run unit tests (builds first)
-just test
+# Check / lint (library code)
+cargo check --workspace
+cargo clippy --all-targets
 
-# Run integration tests (requires local Stellar RPC via Docker)
-just test-integration
-
-# Format check
-cargo fmt --all -- --check
-
-# Lint (requires contracts built first)
-cargo clippy --all
-
-# Run CLI directly during development
-just scaffold <args>    # runs stellar-scaffold
-just registry <args>    # runs stellar-registry
+# Run contract tests (build the wasm fixtures first — see Testing)
+cargo test --workspace
 ```
+
+Note: the `justfile` still carries some recipes from the monorepo. Prefer the commands above until it is trimmed to this repo.
 
 ## Architecture
 
-### Crate Structure
+### Contracts
 
-| Crate | Purpose |
-|-------|---------|
-| `stellar-scaffold-cli` | Main CLI: init, build, generate, watch commands |
-| `stellar-registry-cli` | Registry CLI: publish, deploy, download, upgrade commands |
-| `stellar-build` | Contract building logic and dependency resolution |
-| `stellar-registry-build` | Registry interaction and contract deployment logic |
-| `stellar-registry` | Shared registry types and utilities |
-| `stellar-scaffold-macro` | Procedural macros |
-| `stellar-scaffold-test` | Test utilities and fixture contracts |
+| Path | Purpose |
+|------|---------|
+| `contracts/registry` | The core Registry contract: wasm publication, versioning, named deployments |
+| `contracts/test/*` | Test fixtures: `hello_world`, `hello_world_v2`, `hello_world_v3` |
 
-### Key Contracts
-
-- `contracts/registry` - The on-chain Registry contract (manages wasm publication and contract deployment)
-- `contracts/test/*` - Test contracts for integration testing
-- `crates/stellar-scaffold-test/fixtures/` - Fixture contracts for CLI testing
-
-### CLI Command Flow
-
-**stellar-scaffold commands:** init → build → generate → watch
-- `init` - Scaffolds new project from template (uses degit to fetch from the stellar-scaffold/ui repo)
-- `build` - Builds contracts and generates TypeScript clients based on `environments.toml`
-- `generate contract` - Adds new contract to existing project
-- `watch` - Monitors and rebuilds on changes
-
-**stellar-registry commands:** publish → deploy → create-alias
-- `publish` - Uploads wasm to registry with semantic versioning
-- `deploy` - Instantiates a published wasm as a named contract
-- `create-alias` - Creates local stellar contract alias from registry
+The `feat/registry-tansu-manager` branch additionally contains `contracts/registry-tansu-manager` (a Tansu DAO-gated registry manager), `contracts/hello`, and `contracts/test/tansu-stub`.
 
 ## Testing
 
-- Unit tests run without external dependencies: `cargo t`
-- Integration tests require local Stellar RPC running via Docker (stellar/quickstart image)
-- Feature flag `integration-tests` enables RPC-dependent tests
-- Test fixtures in `crates/stellar-scaffold-test/fixtures/`
+The registry's tests import compiled fixture wasm via `soroban_sdk::contractimport!` (e.g. `target/stellar/local/hello_world.wasm`). **Build the contracts before running `cargo test`**, otherwise the imports fail to resolve:
+
+```bash
+stellar contract build --profile contracts
+cargo test --workspace
+```
 
 ## Build Profile
 
-Contracts use a custom `[profile.contracts]` with aggressive optimization:
+Contracts use a custom `[profile.contracts]` with aggressive size optimization:
 - `opt-level = "z"` (size optimization)
 - `lto = true`
 - `strip = "symbols"`
-- Build with: `stellar contract build --profile contracts`
+- `panic = "abort"`, `codegen-units = 1`
+
+## Cross-repo dependencies
+
+`contracts/registry` has a dev-dependency on the `stellar-registry` crate, consumed from crates.io (published from `stellar-registry/cli`). It is declared as a workspace dependency in the root `Cargo.toml`.
