@@ -14,7 +14,7 @@ stellar-registry = "0.0.10"
 
 soroban-sdk = "25.3.1"
 admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
-stellar-xdr = "=26.0.0"
+stellar-xdr = "=26.0.1"
 
 [profile.contracts]
 inherits = "release"
