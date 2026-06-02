@@ -10,7 +10,7 @@
 # Flow (single phase, single `manager.trigger` tx for the publish):
 #   1.  Register a fresh Tansu project with min_voting_period=$MIN_VOTING_PERIOD seconds
 #   2.  Add maintainer + voter as Tansu members
-#   3.  Upload hello.wasm, deploy registry, deploy manager, set_manager
+#   3.  Upload registry.wasm (payload), deploy registry, deploy manager, set_manager
 #   4.  Create proposal whose outcome is `registry.publish_hash(...)`
 #       targeting the registry directly.
 #   5.  Vote Approve from the second account
@@ -44,14 +44,15 @@ MIN_VOTING_PERIOD="${MIN_VOTING_PERIOD:-60}"
 # Seconds between voting_ends_at and when Tansu.execute is callable. The custom
 # Tansu rejects 0 (InvalidVotingPeriod / #212) — any positive value is fine.
 EXECUTE_DELAY="${EXECUTE_DELAY:-60}"
-HELLO_VERSION="${HELLO_VERSION:-0.1.0}"
+PAYLOAD_VERSION="${PAYLOAD_VERSION:-0.1.0}"
 RUN_ID="${RUN_ID:-$(date +%s)}"
 
-HELLO_WASM="$WASM_DIR/hello.wasm"
+# Payload published to the registry is the registry wasm itself.
 REGISTRY_WASM="$WASM_DIR/registry.wasm"
+PAYLOAD_WASM="$REGISTRY_WASM"
 MANAGER_WASM="$WASM_DIR/registry_tansu_manager.wasm"
 
-for w in "$HELLO_WASM" "$REGISTRY_WASM" "$MANAGER_WASM"; do
+for w in "$REGISTRY_WASM" "$MANAGER_WASM"; do
     [[ -f "$w" ]] || { echo "❌ missing $w — run \`just build\` first" >&2; exit 1; }
 done
 
@@ -127,11 +128,11 @@ for who in "$MAINTAINER_ID:$MAINTAINER_ADDR:maintainer" "$VOTER_ID:$VOTER_ADDR:v
     fi
 done
 
-# 3. Upload hello.wasm.
-echo "==> Uploading hello.wasm"
-HELLO_HASH=$(stellar contract upload --wasm "$HELLO_WASM" \
+# 3. Upload registry.wasm (payload).
+echo "==> Uploading registry.wasm (payload)"
+PAYLOAD_HASH=$(stellar contract upload --wasm "$PAYLOAD_WASM" \
     --source "$MAINTAINER_ID" --network "$NETWORK")
-echo "    hash:               $HELLO_HASH"
+echo "    hash:               $PAYLOAD_HASH"
 
 # 4. Deploy registry (admin=manager=$MAINTAINER initially) and the manager contract.
 echo "==> Deploying registry"
@@ -181,10 +182,10 @@ OUTCOME=$(cat <<EOF
   "address": "$REGISTRY_ID",
   "execute_fn": "publish_hash",
   "args": [
-    {"string": "hello"},
+    {"string": "registry"},
     {"address": "$MAINTAINER_ADDR"},
-    {"bytes": "$HELLO_HASH"},
-    {"string": "$HELLO_VERSION"}
+    {"bytes": "$PAYLOAD_HASH"},
+    {"string": "$PAYLOAD_VERSION"}
   ]
 }]
 EOF
@@ -193,7 +194,7 @@ PROPOSAL_ID_RAW=$(invoke --id "$TANSU_ID" --source "$MAINTAINER_ID" --send=yes \
     -- create_proposal \
     --proposer "$MAINTAINER_ADDR" \
     --project_key "$PROJECT_KEY" \
-    --title "Add hello@${HELLO_VERSION} to registry (fast)" \
+    --title "Add registry@${PAYLOAD_VERSION} to registry (fast)" \
     --ipfs "QmExampleIpfs1111111111111111111111111111111111" \
     --voting_ends_at "$VOTING_ENDS_AT" \
     --public_voting true \
@@ -229,14 +230,14 @@ invoke --id "$MANAGER_ID" --source "$MAINTAINER_ID" --send=yes \
     -- trigger --proposal_id "$PROPOSAL_ID" >/dev/null
 
 # 9. Verify the publish landed.
-echo "==> Verifying registry has hello@$HELLO_VERSION -> $HELLO_HASH"
+echo "==> Verifying registry has registry@$PAYLOAD_VERSION -> $PAYLOAD_HASH"
 PUBLISHED_HASH_RAW=$(invoke --id "$REGISTRY_ID" --source "$MAINTAINER_ID" \
-    -- fetch_hash --wasm_name hello --version "\"$HELLO_VERSION\"")
+    -- fetch_hash --wasm_name registry --version "\"$PAYLOAD_VERSION\"")
 PUBLISHED_HASH="${PUBLISHED_HASH_RAW//\"/}"
-if [[ "$PUBLISHED_HASH" == "$HELLO_HASH" ]]; then
-    echo "    ✓ registry resolved hello@$HELLO_VERSION -> $PUBLISHED_HASH"
+if [[ "$PUBLISHED_HASH" == "$PAYLOAD_HASH" ]]; then
+    echo "    ✓ registry resolved registry@$PAYLOAD_VERSION -> $PUBLISHED_HASH"
 else
-    echo "    ❌ registry returned $PUBLISHED_HASH, expected $HELLO_HASH" >&2
+    echo "    ❌ registry returned $PUBLISHED_HASH, expected $PAYLOAD_HASH" >&2
     exit 1
 fi
 
@@ -263,5 +264,5 @@ cat <<EOF
    registry: $REGISTRY_ID
    manager:  $MANAGER_ID
    proposal: #$PROPOSAL_ID -> Approved (via manager.trigger)
-   hello:    $HELLO_HASH @ $HELLO_VERSION
+   payload:  $PAYLOAD_HASH @ $PAYLOAD_VERSION
 EOF

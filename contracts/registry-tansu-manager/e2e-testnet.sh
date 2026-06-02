@@ -2,29 +2,35 @@
 # End-to-end test of the registry-tansu-manager flow against testnet
 # (or any configured stellar network via $NETWORK).
 #
+# The published + deployed payload is the registry contract's own wasm: the
+# proposal deploys a *subregistry* (root = the root registry from step 1), which
+# exercises the manager→registry deploy path against the registry's real
+# 3-arg `__constructor(admin, manager, root)`.
+#
 # Flow:
-#   1. Deploy a fresh registry (no manager yet → author can self-publish).
-#   2. Author publishes hello.wasm to the registry.
+#   1. Deploy a fresh root registry (admin as bootstrap manager).
+#   2. Publish the registry wasm to that registry under the name `registry`.
 #   3. Deploy a tansu-stub (stand-in for the Tansu DAO; implements
 #      `get_proposal` + a Tansu-like `execute` that auto-invokes the outcome).
 #   4. Deploy the registry-tansu-manager, pointing at the stub + registry.
 #   5. Admin installs the manager on the registry.
-#   6. Plant an `Approved` deploy-proposal on the stub.
+#   6. Plant an `Approved` deploy-proposal on the stub (deploys a subregistry).
 #   7. Call manager.trigger(proposal_id). The manager reads the proposal,
 #      pre-authorizes the outcome (registry.deploy) via
 #      `env.authorize_as_current_contract`, then calls stub.execute — which
 #      auto-invokes the outcome. The registry's manager.require_auth() is
 #      satisfied by the pre-authorization, so the deploy lands in one tx.
-#   8. Verify: invoke hello on the freshly deployed contract.
+#   8. Verify: the registry resolves the deployed subregistry and it responds
+#      to a read call (`manager()`).
 #   9. Replay guard: second trigger(proposal_id) returns ProposalActive (#402).
 #
 # Usage: contracts/registry-tansu-manager/e2e-testnet.sh
 # Env vars:
-#   NETWORK         Stellar network alias (default: testnet; must be in `stellar network ls`).
-#   RUN_ID          Suffix appended to ephemeral identities/aliases (default: epoch).
-#   PROPOSAL_ID     Proposal id to use (default: 1).
-#   HELLO_VERSION   Version published for hello (default: 0.1.0).
-#   CONTRACT_NAME   Name used when the registry deploys hello (default: hello-$RUN_ID).
+#   NETWORK          Stellar network alias (default: testnet; must be in `stellar network ls`).
+#   RUN_ID           Suffix appended to ephemeral identities/aliases (default: epoch).
+#   PROPOSAL_ID      Proposal id to use (default: 1).
+#   PAYLOAD_VERSION  Version published for the registry payload (default: 0.1.0).
+#   CONTRACT_NAME    Name the registry gives the deployed subregistry (default: subregistry-$RUN_ID).
 
 set -euo pipefail
 
@@ -35,18 +41,19 @@ WASM_DIR="$REPO_ROOT/target/stellar/local"
 NETWORK="${NETWORK:-testnet}"
 RUN_ID="${RUN_ID:-$(date +%s)}"
 PROPOSAL_ID="${PROPOSAL_ID:-1}"
-HELLO_VERSION="${HELLO_VERSION:-0.1.0}"
-CONTRACT_NAME="${CONTRACT_NAME:-hello-${RUN_ID}}"
+PAYLOAD_VERSION="${PAYLOAD_VERSION:-0.1.0}"
+CONTRACT_NAME="${CONTRACT_NAME:-subregistry-${RUN_ID}}"
 # 32-byte arbitrary project_key, hex-encoded. Tansu uses keccak256(name); we
 # just need a stable 32-byte value the manager can store and the stub can key on.
 PROJECT_KEY="aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 
-HELLO_WASM="$WASM_DIR/hello.wasm"
+# The registry wasm is both the registry we stand up (step 1) and the payload
+# the proposal publishes + deploys as a subregistry (steps 2, 7).
 REGISTRY_WASM="$WASM_DIR/registry.wasm"
 MANAGER_WASM="$WASM_DIR/registry_tansu_manager.wasm"
 STUB_WASM="$WASM_DIR/tansu_stub.wasm"
 
-for w in "$HELLO_WASM" "$REGISTRY_WASM" "$MANAGER_WASM" "$STUB_WASM"; do
+for w in "$REGISTRY_WASM" "$MANAGER_WASM" "$STUB_WASM"; do
     if [ ! -f "$w" ]; then
         echo "❌ missing $w — run \`just build\` first" >&2
         exit 1
@@ -92,23 +99,23 @@ REGISTRY_ID=$(stellar contract deploy --wasm "$REGISTRY_WASM" \
     -- --admin "$ADMIN_ADDR" --manager "\"$ADMIN_ADDR\"")
 echo "    registry: $REGISTRY_ID"
 
-# 2. Upload hello's wasm and have admin-as-manager publish it on the author's
-#    behalf. With a manager set, the registry requires manager auth for the
-#    first publish under a given wasm name; the recorded author is still
-#    $AUTHOR_ADDR.
-echo "==> Uploading hello.wasm"
-HELLO_HASH=$(stellar contract upload --wasm "$HELLO_WASM" \
+# 2. Upload the registry wasm and have admin-as-manager publish it on the
+#    author's behalf under the name `registry`. With a manager set, the registry
+#    requires manager auth for the first publish under a given wasm name; the
+#    recorded author is still $AUTHOR_ADDR.
+echo "==> Uploading registry.wasm (payload)"
+PAYLOAD_HASH=$(stellar contract upload --wasm "$REGISTRY_WASM" \
     --source "$ADMIN_ID" --network "$NETWORK")
-echo "    hash:     $HELLO_HASH"
+echo "    hash:     $PAYLOAD_HASH"
 
-echo "==> Publishing hello@$HELLO_VERSION (author=$AUTHOR_ADDR, manager=$ADMIN_ID)"
+echo "==> Publishing registry@$PAYLOAD_VERSION (author=$AUTHOR_ADDR, manager=$ADMIN_ID)"
 stellar contract invoke --id "$REGISTRY_ID" \
     --source "$ADMIN_ID" --network "$NETWORK" \
     -- publish_hash \
-    --wasm_name hello \
+    --wasm_name registry \
     --author "$AUTHOR_ADDR" \
-    --wasm_hash "$HELLO_HASH" \
-    --version "$HELLO_VERSION"
+    --wasm_hash "$PAYLOAD_HASH" \
+    --version "$PAYLOAD_VERSION"
 
 # 3. Tansu stub.
 echo "==> Deploying tansu-stub"
@@ -134,7 +141,10 @@ stellar contract invoke --id "$REGISTRY_ID" \
     --source "$ADMIN_ID" --network "$NETWORK" \
     -- set_manager --new_manager "$MANAGER_ID"
 
-# 6. Plant an Approved deploy-proposal on the stub.
+# 6. Plant an Approved deploy-proposal on the stub. The outcome deploys a
+#    subregistry: init = registry __constructor(admin, manager=None,
+#    root=$REGISTRY_ID). `--manager` is omitted (None) so the deployed instance
+#    defers to $REGISTRY_ID as root rather than auto-deploying `unverified`.
 echo "==> Planting Approved deploy-proposal #$PROPOSAL_ID for contract '$CONTRACT_NAME'"
 stellar contract invoke --id "$TANSU_ID" \
     --source "$ADMIN_ID" --network "$NETWORK" \
@@ -142,10 +152,11 @@ stellar contract invoke --id "$TANSU_ID" \
     --project_key "$PROJECT_KEY" \
     --proposal_id "$PROPOSAL_ID" \
     --registry "$REGISTRY_ID" \
-    --wasm_name "hello" \
-    --version "\"$HELLO_VERSION\"" \
+    --wasm_name "registry" \
+    --version "\"$PAYLOAD_VERSION\"" \
     --contract_name "$CONTRACT_NAME" \
-    --admin "$ADMIN_ADDR"
+    --admin "$ADMIN_ADDR" \
+    --root "$REGISTRY_ID"
 
 # 7. Drive the proposal via manager.trigger. The manager reads the proposal
 #    from the stub, pre-authorizes the single outcome (registry.deploy) via
@@ -166,11 +177,14 @@ DEPLOYED_RAW=$(stellar contract invoke --id "$REGISTRY_ID" \
 DEPLOYED="${DEPLOYED_RAW//\"/}"
 echo "    deployed: $DEPLOYED"
 
-echo "==> Calling hello on the deployed contract"
-GREETING=$(stellar contract invoke --id "$DEPLOYED" \
+# The deployed payload is a registry, not hello — prove it's live with a
+# read-only `manager()` call (a subregistry deployed with manager=None returns
+# null).
+echo "==> Calling manager() on the deployed subregistry"
+DEPLOYED_MANAGER=$(stellar contract invoke --id "$DEPLOYED" \
     --source "$CALLER_ID" --network "$NETWORK" \
-    -- hello --to world)
-echo "    hello(world) = $GREETING"
+    -- manager)
+echo "    manager() = $DEPLOYED_MANAGER"
 
 # 9. Replay guard — Tansu's own `if proposal.status != Active { panic }`
 #    (mirrored by the stub as `Error::ProposalActive = 402`).
@@ -190,8 +204,8 @@ fi
 cat <<EOF
 
 ✅ E2E pass
-   registry: $REGISTRY_ID
-   manager:  $MANAGER_ID
-   stub:     $TANSU_ID
-   hello:    $DEPLOYED  ($CONTRACT_NAME)
+   registry:    $REGISTRY_ID
+   manager:     $MANAGER_ID
+   stub:        $TANSU_ID
+   subregistry: $DEPLOYED  ($CONTRACT_NAME)
 EOF

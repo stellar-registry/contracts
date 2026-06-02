@@ -7,7 +7,7 @@
 #
 #   $ ./e2e-real-tansu-testnet.sh setup
 #         -> registers a fresh Tansu project, deploys registry + manager,
-#            uploads hello.wasm, creates a publish_hash proposal on Tansu,
+#            uploads registry.wasm (payload), creates a publish_hash proposal on Tansu,
 #            votes yes, saves state to a sidecar file.
 #         -> prints the exact follow-up command + timestamp.
 #
@@ -32,8 +32,9 @@ WASM_DIR="$REPO_ROOT/target/stellar/local"
 
 NETWORK="${NETWORK:-testnet}"
 TANSU_ID="${TANSU_ID:-CBXKUSLQPVF35FYURR5C42BPYA5UOVDXX2ELKIM2CAJMCI6HXG2BHGZA}"
-HELLO_WASM="$WASM_DIR/hello.wasm"
+# Payload published to the registry is the registry wasm itself.
 REGISTRY_WASM="$WASM_DIR/registry.wasm"
+PAYLOAD_WASM="$REGISTRY_WASM"
 MANAGER_WASM="$WASM_DIR/registry_tansu_manager.wasm"
 
 usage() {
@@ -78,13 +79,13 @@ invoke() { stellar contract invoke --network "$NETWORK" "$@"; }
 # ---------------------------------------------------------------------------
 phase_setup() {
     require_network
-    for w in "$HELLO_WASM" "$REGISTRY_WASM" "$MANAGER_WASM"; do
+    for w in "$REGISTRY_WASM" "$MANAGER_WASM"; do
         [[ -f "$w" ]] || { echo "❌ missing $w — run \`just build\` first" >&2; exit 1; }
     done
 
     RUN_ID="${RUN_ID:-$(date +%s)}"
     STATE_FILE="$SCRIPT_DIR/e2e-real-tansu-state-${RUN_ID}.env"
-    HELLO_VERSION="${HELLO_VERSION:-0.1.0}"
+    PAYLOAD_VERSION="${PAYLOAD_VERSION:-0.1.0}"
     # Tansu enforces project name ≤ 15 chars. The name is also registered on
     # SorobanDomain under TLD .xlm, whose `validate_domain` requires bytes in
     # `[a-z]` only — no digits, no hyphens, no uppercase. Map run-id digits to
@@ -138,11 +139,11 @@ phase_setup() {
         --member_address "$VOTER_ADDR" \
         --meta "tansu-e2e voter" >/dev/null
 
-    # 3. Upload hello.wasm to get the hash the proposal will register.
-    echo "==> Uploading hello.wasm"
-    HELLO_HASH=$(stellar contract upload --wasm "$HELLO_WASM" \
+    # 3. Upload registry.wasm (payload) to get the hash the proposal will register.
+    echo "==> Uploading registry.wasm (payload)"
+    PAYLOAD_HASH=$(stellar contract upload --wasm "$PAYLOAD_WASM" \
         --source "$MAINTAINER_ID" --network "$NETWORK")
-    echo "    hash:        $HELLO_HASH"
+    echo "    hash:        $PAYLOAD_HASH"
 
     # 4. Deploy a fresh registry — admin & manager both set to the G account
     #    initially, so we can swap the manager to the manager contract before
@@ -191,16 +192,16 @@ phase_setup() {
     #    `manager.require_auth` is satisfied.
     NOW=$(date +%s)
     VOTING_ENDS_AT=$((NOW + 24*3600 + 600))   # 24h + 10min cushion
-    PROPOSAL_TITLE="${PROPOSAL_TITLE:-Add hello@${HELLO_VERSION} to registry}"
+    PROPOSAL_TITLE="${PROPOSAL_TITLE:-Add registry@${PAYLOAD_VERSION} to registry}"
     OUTCOME=$(cat <<EOF
 [{
   "address": "$REGISTRY_ID",
   "execute_fn": "publish_hash",
   "args": [
-    {"string": "hello"},
+    {"string": "registry"},
     {"address": "$MAINTAINER_ADDR"},
-    {"bytes": "$HELLO_HASH"},
-    {"string": "$HELLO_VERSION"}
+    {"bytes": "$PAYLOAD_HASH"},
+    {"string": "$PAYLOAD_VERSION"}
   ]
 }]
 EOF
@@ -253,8 +254,8 @@ REGISTRY_ID=$REGISTRY_ID
 MANAGER_ID=$MANAGER_ID
 PROPOSAL_ID=$PROPOSAL_ID
 VOTING_ENDS_AT=$VOTING_ENDS_AT
-HELLO_VERSION=$HELLO_VERSION
-HELLO_HASH=$HELLO_HASH
+PAYLOAD_VERSION=$PAYLOAD_VERSION
+PAYLOAD_HASH=$PAYLOAD_HASH
 EOF
     chmod 0644 "$STATE_FILE"
 
@@ -306,15 +307,15 @@ phase_finalize() {
     invoke --id "$MANAGER_ID" --source "$MAINTAINER_ID" --send=yes \
         -- trigger --proposal_id "$PROPOSAL_ID" >/dev/null
 
-    # 2. Verify the registry now has hello@version pointing at our uploaded hash.
-    echo "==> Verifying registry has hello@$HELLO_VERSION -> $HELLO_HASH"
+    # 2. Verify the registry now has registry@version pointing at our uploaded hash.
+    echo "==> Verifying registry has registry@$PAYLOAD_VERSION -> $PAYLOAD_HASH"
     PUBLISHED_HASH_RAW=$(invoke --id "$REGISTRY_ID" --source "$MAINTAINER_ID" \
-        -- fetch_hash --wasm_name hello --version "\"$HELLO_VERSION\"")
+        -- fetch_hash --wasm_name registry --version "\"$PAYLOAD_VERSION\"")
     PUBLISHED_HASH="${PUBLISHED_HASH_RAW//\"/}"
-    if [[ "$PUBLISHED_HASH" == "$HELLO_HASH" ]]; then
-        echo "    ✓ registry resolved hello@$HELLO_VERSION -> $PUBLISHED_HASH"
+    if [[ "$PUBLISHED_HASH" == "$PAYLOAD_HASH" ]]; then
+        echo "    ✓ registry resolved registry@$PAYLOAD_VERSION -> $PUBLISHED_HASH"
     else
-        echo "    ❌ registry returned $PUBLISHED_HASH, expected $HELLO_HASH" >&2
+        echo "    ❌ registry returned $PUBLISHED_HASH, expected $PAYLOAD_HASH" >&2
         exit 1
     fi
 
@@ -338,7 +339,7 @@ phase_finalize() {
    registry: $REGISTRY_ID
    manager:  $MANAGER_ID
    proposal: #$PROPOSAL_ID -> Approved (via manager.trigger)
-   hello:    $HELLO_HASH @ $HELLO_VERSION
+   payload:  $PAYLOAD_HASH @ $PAYLOAD_VERSION
 EOF
 }
 

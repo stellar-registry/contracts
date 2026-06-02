@@ -1,5 +1,9 @@
 #![no_std]
-#![allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value,
+    clippy::used_underscore_binding
+)]
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, vec, Address, Bytes,
@@ -88,7 +92,7 @@ pub struct Proposal {
 #[contracttype]
 enum Key {
     Proposal(Bytes, u32),
-    /// Marker set when `execute(...)` runs for a (project_key, proposal_id).
+    /// Marker set when `execute(...)` runs for a (`project_key`, `proposal_id`).
     /// On a second call we panic with [`Error::ProposalActive`] to mirror
     /// Tansu's status guard.
     Executed(Bytes, u32),
@@ -172,9 +176,14 @@ impl TansuStub {
     /// Plant an `Approved` proposal whose single outcome is
     /// `registry.deploy(wasm_name, version, contract_name, admin, init, deployer)`.
     ///
-    /// `admin` is reused as the sole constructor arg, matching the
-    /// `__constructor(admin: Address)` shape of the `hello` example contract.
-    /// Use [`set_proposal_outcome`] for any other shape.
+    /// `init` is built as the on-chain Registry contract's
+    /// `__constructor(admin, manager, root)` argument list, so the deployed
+    /// payload is a (sub)registry instance — the contract the e2e scripts
+    /// publish and deploy now that the `hello` example contract is gone. Pass
+    /// `root = Some(<root registry>)` (and `manager = None`) to deploy a
+    /// subregistry; omitting both would make the deployed instance a root
+    /// registry, which requires a manager and auto-deploys `unverified`.
+    /// Use [`set_proposal_outcome`] for any other constructor shape.
     pub fn set_deploy_proposal(
         env: &Env,
         project_key: Bytes,
@@ -184,9 +193,16 @@ impl TansuStub {
         version: Option<String>,
         contract_name: String,
         admin: Address,
+        manager: Option<Address>,
+        root: Option<Address>,
         deployer: Option<Address>,
     ) {
-        let init: Option<Vec<Val>> = Some(vec![env, admin.clone().into_val(env)]);
+        let init: Option<Vec<Val>> = Some(vec![
+            env,
+            admin.clone().into_val(env),
+            manager.into_val(env),
+            root.into_val(env),
+        ]);
         let args: Vec<Val> = vec![
             env,
             wasm_name.into_val(env),
