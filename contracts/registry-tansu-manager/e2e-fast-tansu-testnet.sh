@@ -77,9 +77,11 @@ ensure_account "$VOTER_ID"
 MAINTAINER_ADDR=$(stellar keys address "$MAINTAINER_ID")
 VOTER_ADDR=$(stellar keys address "$VOTER_ID")
 
-# Tansu name validation (SorobanDomain): ≤15 chars, [a-z] only. Map run-id digits → a-j.
-short_id=$(printf '%s' "$RUN_ID" | tr '0-9' 'a-j')
-PROJECT_NAME="${PROJECT_NAME:-ff${short_id: -10}}"
+# Tansu name validation (SorobanDomain): ≤15 chars, lowercase [a-z] only — no
+# digits or hyphens. Readable prefix + a random lowercase tag for uniqueness.
+# (`|| true` swallows the SIGPIPE `head` raises on `tr` under `set -o pipefail`.)
+rand=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c 8) || true
+PROJECT_NAME="${PROJECT_NAME:-fast${rand}}"  # 4 + 8 = 12 chars, all lowercase
 
 echo "==> Network:            $NETWORK"
 echo "==> Tansu (custom):     $TANSU_ID"

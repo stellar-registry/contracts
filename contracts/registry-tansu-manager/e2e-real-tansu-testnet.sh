@@ -88,11 +88,13 @@ phase_setup() {
     PAYLOAD_VERSION="${PAYLOAD_VERSION:-0.1.0}"
     # Tansu enforces project name ≤ 15 chars. The name is also registered on
     # SorobanDomain under TLD .xlm, whose `validate_domain` requires bytes in
-    # `[a-z]` only — no digits, no hyphens, no uppercase. Map run-id digits to
-    # the a–j range so we keep determinism + uniqueness.
+    # `[a-z]` only — no digits, no hyphens, no uppercase. Use a readable prefix
+    # plus a random lowercase tag; the chosen name is persisted to the state
+    # file below, so `finalize` reuses it.
+    # (`|| true` swallows the SIGPIPE `head` raises on `tr` under `pipefail`.)
     if [[ -z "${PROJECT_NAME:-}" ]]; then
-        short_id=$(printf '%s' "$RUN_ID" | tr '0-9' 'a-j')
-        PROJECT_NAME="ee${short_id: -10}"  # 2 + 10 = 12 chars, all lowercase
+        rand=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c 8) || true
+        PROJECT_NAME="real${rand}"  # 4 + 8 = 12 chars, all lowercase
     fi
 
     MAINTAINER_ID="${MAINTAINER_ID:-tansu-e2e-${RUN_ID}}"
