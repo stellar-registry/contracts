@@ -4,7 +4,8 @@ use std::{format, vec::Vec};
 
 use soroban_sdk::Env;
 
-use crate::{error::Error, name::NormalizedName, test::registry::to_string};
+use crate::{name::NormalizedName, test::registry::to_string};
+use stellar_registry_types::NameError;
 
 #[rustfmt::skip]
 const VALID_NAMES: &[&str] = &[
@@ -65,7 +66,7 @@ fn invalid_names() {
 
     for name in INVALID_NAMES {
         let result = NormalizedName::new(&to_string(&env, name));
-        if result != Err(Error::InvalidName) {
+        if result != Err(NameError::InvalidName) {
             failures.push(format!("should be invalid: '{name}'"));
         }
     }
@@ -149,7 +150,7 @@ fn invalid_keywords() {
 
     for name in RUST_KEYWORDS {
         let result = NormalizedName::new(&to_string(&env, name));
-        if result != Err(Error::InvalidName) {
+        if result != Err(NameError::InvalidName) {
             failures.push(format!("keyword should be invalid: '{name}'"));
         }
     }

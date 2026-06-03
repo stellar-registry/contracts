@@ -46,3 +46,13 @@ pub enum Error {
     /// Subregistry must be a different contract than the current registry
     SubRegistryIsSelf,
 }
+
+// `NormalizedName` lives in `stellar-registry-types` with its own small
+// `NameError`. Map it onto this contract's richer `Error` so existing call
+// sites (`name.try_into()?`, `NormalizedName::new(..)?`) keep surfacing
+// `Error::InvalidName` with the same on-chain code as before the extraction.
+impl From<stellar_registry_types::NameError> for Error {
+    fn from(_: stellar_registry_types::NameError) -> Self {
+        Error::InvalidName
+    }
+}

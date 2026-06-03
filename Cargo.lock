@@ -1250,6 +1250,7 @@ dependencies = [
  "soroban-sdk",
  "soroban-sdk-tools",
  "stellar-registry",
+ "stellar-registry-types",
  "stellar-xdr 26.0.0",
 ]
 
@@ -1754,6 +1755,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f54702fcc66a8c3f2b019169000c6a1343c282f9a108133aef460422173c8ea1"
 dependencies = [
  "stellar-scaffold-macro",
+]
+
+[[package]]
+name = "stellar-registry-types"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]

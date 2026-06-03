@@ -1,7 +1,7 @@
 use soroban_sdk::{Env, String};
 
 use super::to_str::AsStr;
-use crate::Error;
+use crate::error::NameError;
 
 pub(crate) struct Normalized {
     len: usize,
@@ -11,14 +11,14 @@ pub(crate) struct Normalized {
 impl Normalized {
     pub const MAX_NAME_LENGTH: usize = 64;
 
-    pub fn canonicalize(s: &String) -> Result<String, Error> {
+    pub fn canonicalize(s: &String) -> Result<String, NameError> {
         Normalized::new(s)?.to_string(s.env())
     }
 
-    pub fn new(s: &String) -> Result<Self, Error> {
+    pub fn new(s: &String) -> Result<Self, NameError> {
         let len = s.len() as usize;
         if len > Self::MAX_NAME_LENGTH || s.is_empty() {
-            return Err(Error::InvalidName);
+            return Err(NameError::InvalidName);
         }
         let mut internal = [0u8; Self::MAX_NAME_LENGTH];
         let (first, _) = internal.split_at_mut(len);
@@ -26,16 +26,16 @@ impl Normalized {
         Self { len, internal }.normalize()?.validate()
     }
 
-    fn normalize(mut self) -> Result<Self, Error> {
+    fn normalize(mut self) -> Result<Self, NameError> {
         let s = self.as_mut_str()?;
         if !s.starts_with(|c: char| c.is_ascii_alphabetic()) {
-            return Err(Error::InvalidName);
+            return Err(NameError::InvalidName);
         }
         let mut chars_to_change: [Option<(usize, char)>; Self::MAX_NAME_LENGTH] =
             [None; Self::MAX_NAME_LENGTH];
         for (i, c) in s.chars().enumerate() {
             if !(c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-                return Err(Error::InvalidName);
+                return Err(NameError::InvalidName);
             }
             if c == '_' {
                 chars_to_change[i] = Some((i, '-'));
@@ -51,9 +51,9 @@ impl Normalized {
         Ok(self)
     }
 
-    fn validate(self) -> Result<Self, Error> {
+    fn validate(self) -> Result<Self, NameError> {
         if is_keyword(self.as_str()?) {
-            return Err(Error::InvalidName);
+            return Err(NameError::InvalidName);
         }
         Ok(self)
     }
@@ -68,18 +68,18 @@ impl Normalized {
         first
     }
 
-    pub fn to_string(&self, env: &Env) -> Result<String, Error> {
+    pub fn to_string(&self, env: &Env) -> Result<String, NameError> {
         let s = self.as_str()?;
         Ok(String::from_str(env, s))
     }
 }
 
 impl AsStr for Normalized {
-    fn as_mut_str(&mut self) -> Result<&mut str, Error> {
+    fn as_mut_str(&mut self) -> Result<&mut str, NameError> {
         self.as_mut_bytes().as_mut_str()
     }
 
-    fn as_str(&self) -> Result<&str, Error> {
+    fn as_str(&self) -> Result<&str, NameError> {
         self.as_bytes().as_str()
     }
 }

@@ -1,0 +1,19 @@
+[package]
+name = "stellar-registry-types"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Shared, no_std types from the Stellar Registry contract for reuse by other Soroban contracts (e.g. name normalization)."
+repository.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# Deliberately a wide range (not the workspace pin) so this crate can be a git
+# dependency of contracts on either soroban-sdk 25.x (this repo) or 26.x (tansu).
+# Only version-stable APIs are used (String/Bytes/Env/crypto + contracterror).
+soroban-sdk = ">=25.3.1, <27"
+
+[lints]
+workspace = true
