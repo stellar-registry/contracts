@@ -13,9 +13,15 @@ repository = "https://github.com/stellar-registry/contracts"
 # Cross-repo dev-dep from stellar-registry/cli
 stellar-registry = "0.0.10"
 
-soroban-sdk = "25.3.1"
-admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
-stellar-xdr = "=26.0.0"
+soroban-sdk = "27.0.0-rc.1"
+# v27 bump for admin-sep (theahaco/admin-sep#13, stacked on the feat/use_references
+# rev this repo already pins). Pinned to the v27 rev until that work merges; bumps
+# admin-sep's soroban-sdk 25 -> 27 to match this workspace.
+admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "c4624cc742913a16095084e3149e241405882849" }
+# v27 soroban-sdk-tools is not published yet — consume it from the PR #40 branch
+# until a v27 release lands. https://github.com/BlaineHeffron/soroban-sdk-tools/pull/40
+soroban-sdk-tools = { git = "https://github.com/BlaineHeffron/soroban-sdk-tools", branch = "update-soroban-sdk-v27" }
+stellar-xdr = "=27.0.0"
 
 [profile.contracts]
 inherits = "release"

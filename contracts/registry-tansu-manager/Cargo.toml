@@ -13,7 +13,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-soroban-sdk-tools = "0.1.2"
+soroban-sdk-tools = { workspace = true }
 stellar-registry = { workspace = true }
 # Build-order signal so `stellar scaffold build` produces `tansu_stub.wasm`
 # before this crate compiles `import_contract_client!(tansu_stub)`. The stub
@@ -23,7 +23,7 @@ tansu-stub = { path = "../test/tansu-stub" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-soroban-sdk-tools = { version = "0.1.2", features = ["testutils"] }
+soroban-sdk-tools = { workspace = true, features = ["testutils"] }
 
 [package.metadata.stellar]
 cargo_inherit = true
