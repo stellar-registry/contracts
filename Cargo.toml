@@ -14,9 +14,9 @@ repository = "https://github.com/stellar-registry/contracts"
 stellar-registry = "0.0.10"
 
 soroban-sdk = "27.0.0-rc.1"
-# v27 bump for admin-sep (theahaco/admin-sep#13, stacked on the feat/use_references
-# rev this repo already pins). Pinned to the v27 rev until that work merges; bumps
-# admin-sep's soroban-sdk 25 -> 27 to match this workspace.
+# admin-sep v27 is on theahaco/admin-sep main (theahaco/admin-sep#14) and will be
+# published to crates.io via release-plz. Until that publish lands, pin the v27 rev;
+# then switch to a crates.io version (e.g. `admin-sep = "0.1.0"`).
 admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "c4624cc742913a16095084e3149e241405882849" }
 # v27 soroban-sdk-tools is not published yet — consume it from the PR #40 branch
 # until a v27 release lands. https://github.com/BlaineHeffron/soroban-sdk-tools/pull/40
