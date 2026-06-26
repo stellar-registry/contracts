@@ -14,7 +14,7 @@ Related repos:
 ## Common Commands
 
 ```bash
-# Install the pinned stellar-cli (v26.0.0) into ./target/bin and set up git hooks
+# Install the pinned stellar-cli (v27.0.0) into ./target/bin and set up git hooks
 just setup
 
 # Build all contracts with the size-optimized profile
