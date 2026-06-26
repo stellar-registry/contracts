@@ -1669,8 +1669,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk-tools"
-version = "0.1.2"
-source = "git+https://github.com/BlaineHeffron/soroban-sdk-tools?branch=update-soroban-sdk-v27#c7fb9d439119ba94574e58d7e2b611681b2d7b54"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05e26a103c213e7c78ad76b0f1aa97150ae2639bc098ee6bdd242f0c94480774"
 dependencies = [
  "ed25519-dalek",
  "k256",
@@ -1682,8 +1683,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk-tools-macro"
-version = "0.1.2"
-source = "git+https://github.com/BlaineHeffron/soroban-sdk-tools?branch=update-soroban-sdk-v27#c7fb9d439119ba94574e58d7e2b611681b2d7b54"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "636e634a4e43c7003d7bcadfb93a8a757b1dcaf6f7844765493fd2fbfa5ca9d2"
 dependencies = [
  "darling 0.23.0",
  "heck",
