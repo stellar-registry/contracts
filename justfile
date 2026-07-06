@@ -18,7 +18,7 @@ stellar +args:
     @stellar {{ args }}
 
 build_contract p:
-    stellar contract build --profile contracts --package {{ p }}
+    stellar contract build --package {{ p }}
 
 # Build all contracts with the size-optimized profile. Uses `stellar scaffold
 # build` (not plain `stellar contract build`) so wasm is staged to
@@ -27,7 +27,7 @@ build_contract p:
 # against. STELLAR_NETWORK defaults to `local` (see stellar-build), matching the
 # `target/stellar/local/...` paths the tests import from.
 build:
-    stellar scaffold build --profile contracts
+    stellar scaffold build
 
 # Setup git hooks and pin the CLI versions
 setup:
