@@ -13,13 +13,9 @@ repository = "https://github.com/stellar-registry/contracts"
 # Cross-repo dev-dep from stellar-registry/cli
 stellar-registry = "0.0.10"
 
-soroban-sdk = "27.0.0-rc.1"
-# admin-sep v27 is on theahaco/admin-sep main (theahaco/admin-sep#14) and will be
-# published to crates.io via release-plz. Until that publish lands, pin the v27 rev;
-# then switch to a crates.io version (e.g. `admin-sep = "0.2.0"`).
-admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "c4624cc742913a16095084e3149e241405882849" }
-soroban-sdk-tools = "0.1.3"
-stellar-xdr = "=27.0.0"
+soroban-sdk = "25.3.1"
+admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
+stellar-xdr = "=26.0.0"
 
 [profile.release]
 opt-level = "z"
