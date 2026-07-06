@@ -37,7 +37,7 @@ INITIAL_BATCH="$DATA_DIR/initial_batch.json"
 WASM="${WASM:-$SCRIPT_DIR/registry.wasm}"
 
 if [ ! -f "$WASM" ]; then
-    die "$SCRIPTS_DIR/registry.wasm" not found; download it from https://github.com/stellar-registry/contracts/releases (can override location with env WASM)"
+    die "$SCRIPTS_DIR/registry.wasm not found; download it from https://github.com/stellar-registry/contracts/releases (can override location with env WASM)"
 fi
 
 # ---------------------------------------------------------------------------
