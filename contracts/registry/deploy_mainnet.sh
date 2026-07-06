@@ -119,7 +119,7 @@ preflight() {
         warn "passphrase override in effect — this is NOT the standard Pubnet passphrase"
     fi
 
-    stellar keys address "$ADMIN" --network "$NETWORK" >/dev/null 2>&1 \
+    stellar keys public-key "$ADMIN" >/dev/null 2>&1 \
         || die "admin key '$ADMIN' not found (add it with 'stellar keys add $ADMIN' or 'stellar keys generate')"
 
     [ -f "$INITIAL_CONTRACTS" ] || die "missing $INITIAL_CONTRACTS"
