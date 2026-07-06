@@ -34,6 +34,12 @@ DATA_DIR="$SCRIPT_DIR/mainnet"
 INITIAL_CONTRACTS="$DATA_DIR/initial_contracts.json"
 INITIAL_BATCH="$DATA_DIR/initial_batch.json"
 
+WASM="${WASM:-$SCRIPT_DIR/registry.wasm}"
+
+if [ ! -f "$WASM" ]; then
+    die "$SCRIPTS_DIR/registry.wasm" not found; download it from https://github.com/stellar-registry/contracts/releases (can override location with env WASM)"
+fi
+
 # ---------------------------------------------------------------------------
 # Args
 # ---------------------------------------------------------------------------
@@ -148,11 +154,6 @@ resolve_root() {
 
 bootstrap_root() {
     log "Phase 1: bootstrapping root registry"
-    local wasm="$REPO_ROOT/target/wasm32v1-none/contracts/registry.wasm"
-    if [ ! -f "$wasm" ]; then
-        warn "registry.wasm not built; building with the contracts profile"
-        run stellar contract build --profile contracts --package registry
-    fi
     [ -n "${REGISTRY_SALT:-}" ] \
         || die "--bootstrap-root needs REGISTRY_SALT (64-hex) matching the CLI's stellar-registry-build/.salt"
 
@@ -161,7 +162,7 @@ bootstrap_root() {
     # Root registry: no --root, manager required (constructor enforces ManagerRequired).
     run stellar contract deploy \
         --alias registry \
-        --wasm "$wasm" \
+        --wasm "$WASM" \
         --salt "$REGISTRY_SALT" \
         "${net_args[@]}" \
         -- \
@@ -191,16 +192,12 @@ ensure_root() {
 publish_registry_wasm() {
     [ "$DO_PUBLISH" -eq 1 ] || { log "Phase 2: publish skipped (--no-publish)"; return; }
     log "Phase 2: publishing registry wasm"
-    local wasm="$REPO_ROOT/target/wasm32v1-none/contracts/registry.wasm"
-    if [ ! -f "$wasm" ]; then
-        run stellar contract build --profile contracts --package registry
-    fi
     # Pass --wasm-name and --binver explicitly. `stellar registry publish` otherwise
     # derives them from the wasm's `name`/`binver` contractmeta, which released
     # registry artifacts do not always carry; supplying both makes publish work for
     # any local wasm. (Each flag alone leaves the other required arg unfilled.)
     run stellar registry publish \
-        --wasm "$wasm" \
+        --wasm "$WASM" \
         --wasm-name registry \
         --binver "$REGISTRY_VERSION" \
         --author "$ADMIN" \
