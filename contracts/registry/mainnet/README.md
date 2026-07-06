@@ -19,7 +19,6 @@ below was resolved from an authoritative source **and verified live on Pubnet**
 | blend | backstop-v2 | `CAQQR5SWBXKIGZKPBZDH3KM5GQ5GUTPKB7JAFCINLZBC5WXPJKRG3IM7` | blend-utils `mainnet.contracts.json` (`backstopV2`) | high |
 | blend | fixed-v2-pool | `CAJJZSGMMM3PD7N33TAPHGBUGTB43OC73HVIK2L2G6BNGGGYOSSYBXBD` | blend-utils `mainnet.contracts.json` (`FixedV2`) | high |
 | blend | cetes-pool | `CDMAVJPFXPADND3YRL4BSM3AKZWCTFMX27GLLXCML3PD62HEQS5FPVAI` | on-chain (Blend V2 wasm + dominant CETES reserve) | medium |
-| blend | usdc | `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75` | blend-utils `mainnet.contracts.json` (`USDC` = Circle USDC SAC) | high |
 | defindex | factory | `CDKFHFJIET3A73A2YN4KV7NSV32S6YGQMUFH3DNJXLBWL4SKEGVRNFKI` | paltalabs/defindex `public/mainnet.contracts.json` (`defindex_factory`) | high |
 | defindex | usdc-vault | `CBNKCU3HGFKHFOF7JTGXQCNKE3G3DXS5RDBQUKQMIIECYKXPIOUGB2S3` | on-chain vault #7 (Beans USDC), factory-enumerated | medium |
 | defindex | xlm-vault | `CCB2AR5X3KP4WQKE7HNSUSDS7SHFMC2WPVSZ2ZXJ6DHXOKHFFKOZE6GK` | on-chain vault #95 (Peridot XLM), factory-enumerated | medium |
