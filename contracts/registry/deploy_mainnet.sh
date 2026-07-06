@@ -27,6 +27,8 @@ PASSPHRASE="${STELLAR_NETWORK_PASSPHRASE:-Public Global Stellar Network ; Septem
 BATCH_LIMIT="${BATCH_LIMIT:-10}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Semantic version to publish the registry wasm under (defaults to the crate version).
+REGISTRY_VERSION="${REGISTRY_VERSION:-$(awk -F'"' '/^version[[:space:]]*=/ { print $2; exit }' "$SCRIPT_DIR/Cargo.toml")}"
 REPO_ROOT="$SCRIPT_DIR/../.."
 DATA_DIR="$SCRIPT_DIR/mainnet"
 INITIAL_CONTRACTS="$DATA_DIR/initial_contracts.json"
@@ -193,7 +195,16 @@ publish_registry_wasm() {
     if [ ! -f "$wasm" ]; then
         run stellar contract build --profile contracts --package registry
     fi
-    run stellar registry publish --wasm "$wasm" --author "$ADMIN" "${net_args[@]}"
+    # Pass --wasm-name and --binver explicitly. `stellar registry publish` otherwise
+    # derives them from the wasm's `name`/`binver` contractmeta, which released
+    # registry artifacts do not always carry; supplying both makes publish work for
+    # any local wasm. (Each flag alone leaves the other required arg unfilled.)
+    run stellar registry publish \
+        --wasm "$wasm" \
+        --wasm-name registry \
+        --binver "$REGISTRY_VERSION" \
+        --author "$ADMIN" \
+        "${net_args[@]}"
 }
 
 # ---------------------------------------------------------------------------
