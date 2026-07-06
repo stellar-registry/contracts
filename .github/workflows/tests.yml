@@ -32,7 +32,7 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       - uses: cargo-bins/cargo-binstall@main
-      - uses: stellar/stellar-cli@v27.0.0
+      - uses: stellar/stellar-cli@v26.0.0
       - name: Install stellar-scaffold (just build uses `stellar scaffold build`)
         run: cargo binstall -y stellar-scaffold-cli@0.0.24
       - uses: mozilla-actions/sccache-action@v0.0.10

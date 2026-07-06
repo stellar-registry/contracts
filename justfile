@@ -32,7 +32,7 @@ build:
 # Setup git hooks and pin the CLI versions
 setup:
     git config core.hooksPath .githooks
-    -cargo binstall -y stellar-cli --version 27.0.0 --force --install-path ./target/bin
+    -cargo binstall -y stellar-cli --version 26.0.0 --force --install-path ./target/bin
     -cargo binstall -y stellar-scaffold-cli --version 0.0.24 --force --install-path ./target/bin
 
 # Tests import compiled fixture wasm via `contractimport!`, so build first
