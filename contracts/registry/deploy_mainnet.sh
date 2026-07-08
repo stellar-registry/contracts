@@ -64,7 +64,7 @@ Env overrides: STELLAR_NETWORK ($NETWORK), REGISTRY_ADMIN ($ADMIN),
 
 Notes on --bootstrap-root: the root registry's deterministic contract id is derived
 from the salt baked into the CLI repo (stellar-registry/cli, crates/stellar-registry-build/.salt).
-Set REGISTRY_SALT to that 64-hex value so the deployed root matches the id the
+Set REGISTRY_SALT_FILE to CLI's stellar-registry-build/.salt so the deployed root matches the id the
 \`stellar registry\` plugin resolves. Without a matching salt, \`fetch-contract-id\`
 will not find the root you deploy.
 EOF
@@ -101,7 +101,7 @@ run() {
 }
 
 # Common global args passed to every plugin/cli invocation.
-net_args=(--network "$NETWORK" --source "$ADMIN")
+net_args=(--network "$NETWORK" --source "$ADMIN" --inclusion-fee 10000000)
 
 # ---------------------------------------------------------------------------
 # Phase 0 — preflight
@@ -154,8 +154,11 @@ resolve_root() {
 
 bootstrap_root() {
     log "Phase 1: bootstrapping root registry"
-    [ -n "${REGISTRY_SALT:-}" ] \
-        || die "--bootstrap-root needs REGISTRY_SALT (64-hex) matching the CLI's stellar-registry-build/.salt"
+    [ -n "${REGISTRY_SALT_FILE:-}" ] \
+        || die "--bootstrap-root needs REGISTRY_SALT_FILE pointing to CLI's stellar-registry-build/.salt"
+    local salt
+    salt="$(shasum -a 256 < "$REGISTRY_SALT_FILE" | awk '{print $1}')"
+    log "Salt: $REGISTRY_SALT_FILE produces: $salt"
 
     local manager
     manager="$(stellar keys public-key "$ADMIN")"
@@ -163,7 +166,7 @@ bootstrap_root() {
     run stellar contract deploy \
         --alias registry \
         --wasm "$WASM" \
-        --salt "$REGISTRY_SALT" \
+        --salt "$salt" \
         "${net_args[@]}" \
         -- \
         --admin "$ADMIN" \
@@ -178,7 +181,7 @@ ensure_root() {
         if [ "$BOOTSTRAP_ROOT" -eq 1 ]; then
             bootstrap_root
         else
-            die "root registry not found. Deploy it first, or re-run with --bootstrap-root (needs REGISTRY_SALT)."
+            die "root registry not found. Deploy it first, or re-run with --bootstrap-root (needs REGISTRY_SALT_FILE)."
         fi
     fi
     [ -n "$ROOT_REGISTRY" ] || [ "$DRY_RUN" -eq 1 ] \
