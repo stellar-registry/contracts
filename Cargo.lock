@@ -1240,7 +1240,7 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "registry"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "admin-sep",
  "assert_matches",
@@ -1255,7 +1255,7 @@ dependencies = [
 
 [[package]]
 name = "registry-tansu-manager"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "soroban-sdk",
  "soroban-sdk-tools",
@@ -1759,9 +1759,9 @@ dependencies = [
 
 [[package]]
 name = "stellar-registry"
-version = "0.0.10"
+version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f54702fcc66a8c3f2b019169000c6a1343c282f9a108133aef460422173c8ea1"
+checksum = "fa6e1358b3d5ebdd0d835e5465c978646103a8c478594c716c273d6665ad3a1b"
 dependencies = [
  "stellar-scaffold-macro",
 ]
