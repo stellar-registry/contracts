@@ -15,7 +15,10 @@ mod tansu_stub_wasm {
 #[test]
 fn constructor_stores_values() {
     let env = Env::default();
-    let tansu = env.register(tansu_stub_wasm::WASM, ());
+    // TODO: deploy to local:
+    //   1. Stellar Registry wasm + contract
+    //   2. Via local Registry, Tansu wasm + contract
+    // So that `import_contract[_client]!` work correctly
     let registry = Address::generate(&env);
     let project_key = Bytes::from_slice(&env, &[7u8; 16]);
     let manager = env.register(
