@@ -11,7 +11,7 @@ repository = "https://github.com/stellar-registry/contracts"
 
 [workspace.dependencies]
 # Cross-repo dev-dep from stellar-registry/cli
-stellar-registry = "0.0.10"
+stellar-registry = "0.1.0"
 
 soroban-sdk = "25.3.1"
 admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
