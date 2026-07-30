@@ -35,7 +35,7 @@ jobs:
       - uses: stellar/stellar-cli@v26.0.0
       - name: Install stellar-scaffold (just build uses `stellar scaffold build`)
         run: cargo binstall -y stellar-scaffold-cli@0.0.24
-      - uses: mozilla-actions/sccache-action@v0.0.10
+      - uses: mozilla-actions/sccache-action@v0.0.11
       # `just test` builds the contracts (so the test wasms exist for
       # `contractimport!`) and then runs the tests, which execute in the
       # in-process Soroban test env and need no RPC node.
