@@ -45,3 +45,11 @@ clippy *args:
 
 clippy-test:
     just clippy --tests --all-features
+
+# Flux refinement verification of the registry contract (github.com/flux-rs/flux
+# via the workspace flux-rs dep; toolchain setup: `just flux-setup` in
+# nidohq/soroban-flux). Attributes are no-ops in normal builds. Overflow
+# checking is per-item (#[opts(check_overflow = "strict")]) because the
+# soroban-sdk-tools scerr macro generates arithmetic that can't be annotated.
+flux:
+    PATH="$HOME/.cargo/bin:$PATH" RUSTUP_TOOLCHAIN=nightly-2026-02-05 FLUXFLAGS="-Fpointer-width=32 -Fcache=target/flux-cache" cargo flux -p registry

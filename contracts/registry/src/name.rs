@@ -54,7 +54,16 @@ impl NormalizedName {
         let s = &self.0;
         let env = s.env();
         let len = s.len() as usize;
-        let mut bytes = [0u8; 100];
+        // Normalized names are at most MAX_NAME_LENGTH bytes by
+        // construction; the only other producers are the `new_unchecked`
+        // constant helpers below. Reject anything longer explicitly — the
+        // previous 100-byte buffer silently accepted 65..=100-byte
+        // unnormalized names and sliced out of bounds past 100.
+        assert!(
+            len <= Normalized::MAX_NAME_LENGTH,
+            "hash() requires a normalized (<= 64 byte) name"
+        );
+        let mut bytes = [0u8; Normalized::MAX_NAME_LENGTH];
         let bytes = &mut bytes[0..len];
         s.copy_into_slice(bytes);
         let mut b = Bytes::new(env);

@@ -401,7 +401,11 @@ pub trait Batchable {
         let contract_map = Storage::new(env).contract;
         let mut seen: soroban_sdk::Map<soroban_sdk::String, ()> = soroban_sdk::Map::new(env);
 
-        for entry in contracts.iter() {
+        // Index loop: soroban Vec iteration ICEs flux (projections.rs:720).
+        let mut idx: u32 = 0;
+        while idx < contracts.len() {
+            let entry = contracts.get_unchecked(idx);
+            idx += 1;
             let (name_str, _contract_address, _owner) = entry;
             let contract_name: NormalizedName = name_str.try_into()?;
             let name_key = contract_name.to_string();
@@ -423,6 +427,7 @@ pub trait Batchable {
     /// Process up to `limit` pending batch entries, registering each contract.
     /// Callable by anyone. Returns the number of contracts processed.
     /// Call repeatedly to iterate through all entries.
+    #[flux_rs::opts(check_overflow = "strict")]
     fn process_batch(env: &Env, limit: u32) -> Result<u32, Error> {
         let batch = Storage::get_batch(env).ok_or(Error::NoPendingBatch)?;
         let len = batch.len();
@@ -432,15 +437,20 @@ pub trait Batchable {
             return Err(Error::NoPendingBatch);
         }
 
-        let end = (cursor + limit).min(len);
+        // Saturating: `cursor + limit` could otherwise overflow u32 and trap
+        // on a caller-supplied `limit` near u32::MAX (found by the Flux
+        // overflow check); saturation just clamps to "process to the end".
+        let end = cursor.saturating_add(limit).min(len);
         let mut processed = 0u32;
 
-        for i in cursor..end {
+        let mut i = cursor;
+        while i < end {
             let (name_str, contract_address, owner) =
                 batch.get(i).ok_or(Error::BatchEntryExpired)?;
             let contract_name: NormalizedName = name_str.try_into()?;
             Contract::register_contract_name(env, &contract_name, &contract_address, &owner)?;
             processed += 1;
+            i += 1;
         }
 
         if end >= len {
