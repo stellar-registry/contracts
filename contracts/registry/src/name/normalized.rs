@@ -1,52 +1,75 @@
+use flux_rs::attrs::{invariant, opts, refined_by};
 use soroban_sdk::{Env, String};
 
 use super::to_str::AsStr;
 use crate::Error;
 
+/// Longest accepted name, in bytes. Module-level (not an associated const)
+/// so it can appear in the flux refinement below.
+pub(crate) const MAX_NAME_LENGTH: usize = 64;
+
+/// Flux-refined: `len` is an index of the type with the invariant
+/// `len <= MAX_NAME_LENGTH`, so every slice of `internal` by `len` is proven
+/// in-bounds at compile time rather than by inspection.
+#[refined_by(n: int)]
+#[invariant(n <= MAX_NAME_LENGTH)]
 pub(crate) struct Normalized {
+    #[field(usize[n])]
     len: usize,
-    internal: [u8; Self::MAX_NAME_LENGTH],
+    internal: [u8; MAX_NAME_LENGTH],
 }
 
 impl Normalized {
-    pub const MAX_NAME_LENGTH: usize = 64;
+    pub const MAX_NAME_LENGTH: usize = MAX_NAME_LENGTH;
 
     pub fn canonicalize(s: &String) -> Result<String, Error> {
         Normalized::new(s)?.to_string(s.env())
     }
 
+    #[opts(check_overflow = "strict")]
     pub fn new(s: &String) -> Result<Self, Error> {
         let len = s.len() as usize;
-        if len > Self::MAX_NAME_LENGTH || s.is_empty() {
+        // `len == 0` is exactly `s.is_empty()`; phrased on the local so the
+        // non-empty fact is visible to flux too.
+        if len > MAX_NAME_LENGTH || len == 0 {
             return Err(Error::InvalidName);
         }
-        let mut internal = [0u8; Self::MAX_NAME_LENGTH];
+        let mut internal = [0u8; MAX_NAME_LENGTH];
         let (first, _) = internal.split_at_mut(len);
         s.copy_into_slice(first);
         Self { len, internal }.normalize()?.validate()
     }
 
+    /// Validates the crates.io-style charset and canonicalizes in place
+    /// (`_` → `-`, uppercase → lowercase).
+    ///
+    /// Operates byte-wise rather than on `chars()`: every accepted byte is
+    /// ASCII (anything `>= 0x80` — i.e. any byte of a multi-byte UTF-8
+    /// character — fails `is_ascii_alphanumeric` exactly like its `char`
+    /// counterpart did), so the byte walk accepts and rewrites precisely the
+    /// same strings, while dropping the old `unsafe as_bytes_mut` and the
+    /// deferred `chars_to_change` buffer, and giving flux an index loop it
+    /// can bound.
+    #[opts(check_overflow = "strict")]
     fn normalize(mut self) -> Result<Self, Error> {
-        let s = self.as_mut_str()?;
-        if !s.starts_with(|c: char| c.is_ascii_alphabetic()) {
+        // Index `internal` directly (not through the `as_mut_bytes` slice):
+        // the struct invariant `len <= MAX_NAME_LENGTH` is what proves every
+        // access below in-bounds, and it lives on the struct fields.
+        if self.len == 0 || !self.internal[0].is_ascii_alphabetic() {
             return Err(Error::InvalidName);
         }
-        let mut chars_to_change: [Option<(usize, char)>; Self::MAX_NAME_LENGTH] =
-            [None; Self::MAX_NAME_LENGTH];
-        for (i, c) in s.chars().enumerate() {
-            if !(c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        let mut i: usize = 0;
+        while i < self.len {
+            let b = self.internal[i];
+            if !(b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
                 return Err(Error::InvalidName);
             }
-            if c == '_' {
-                chars_to_change[i] = Some((i, '-'));
+            if b == b'_' {
+                self.internal[i] = b'-';
+            } else {
+                self.internal[i] = b.to_ascii_lowercase();
             }
-            if c.is_ascii_uppercase() {
-                chars_to_change[i] = Some((i, c.to_ascii_lowercase()));
-            }
-        }
-        let as_bytes = unsafe { s.as_bytes_mut() };
-        for (i, c) in chars_to_change.into_iter().flatten() {
-            as_bytes[i] = c as u8;
+            i += 1;
         }
         Ok(self)
     }
@@ -63,11 +86,6 @@ impl Normalized {
         first
     }
 
-    fn as_mut_bytes(&mut self) -> &mut [u8] {
-        let (first, _) = self.internal.split_at_mut(self.len);
-        first
-    }
-
     pub fn to_string(&self, env: &Env) -> Result<String, Error> {
         let s = self.as_str()?;
         Ok(String::from_str(env, s))
@@ -75,10 +93,6 @@ impl Normalized {
 }
 
 impl AsStr for Normalized {
-    fn as_mut_str(&mut self) -> Result<&mut str, Error> {
-        self.as_mut_bytes().as_mut_str()
-    }
-
     fn as_str(&self) -> Result<&str, Error> {
         self.as_bytes().as_str()
     }

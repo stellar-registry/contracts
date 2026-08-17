@@ -16,6 +16,11 @@ stellar-registry = "0.0.10"
 soroban-sdk = "25.3.1"
 admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "46ed159ff38ee81f4b61b5ddb8ca4b6bdf972028" }
 stellar-xdr = "=26.0.0"
+# Flux refinement-attribute macros (github.com/flux-rs/flux). Attrs erase to
+# no-ops on stable; verification runs via `just flux` under flux's pinned
+# nightly. Used directly (not via soroban-flux) because this workspace is on
+# soroban-sdk 25 and the bridge crate's shared types require >=26.
+flux-rs = { git = "https://github.com/flux-rs/flux.git", rev = "283ad737569f80951973747ef16f1a89d64d9728" }
 
 [profile.release]
 opt-level = "z"
