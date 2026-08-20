@@ -17,7 +17,6 @@ use soroban_sdk::{
 };
 
 use crate::error::Error;
-use admin_sep::AdministratableExtension;
 
 /// Stateless namespace for the registry's internal helper routines.
 ///
@@ -189,10 +188,7 @@ impl RegistryHelpers {
     ///
     /// Furthermore it uses the `NormalizedName::new_unchecked`, which is unsafe because it skips validating
     /// the name, which we know already to be valid.
-    pub(crate) fn deploy_unverified_and_claim_registry(
-        env: &Env,
-        admin: &Address,
-    ) -> Result<(), Error> {
+    pub fn deploy_unverified_and_claim_registry(env: &Env, admin: &Address) -> Result<(), Error> {
         unsafe {
             if let Executable::Wasm(wasm_hash) = env
                 .current_contract_address()
@@ -396,7 +392,7 @@ pub trait Deployable {
 }
 
 #[contracttrait]
-pub trait Batchable: AdministratableExtension {
+pub trait Batchable {
     /// Stage a batch of existing contracts for registration.
     /// Requires manager auth if manager is set, otherwise admin auth.
     /// Each entry is (`contract_name`, `contract_address`, `owner`).
@@ -412,7 +408,7 @@ pub trait Batchable: AdministratableExtension {
         if let Some(manager) = Storage::manager(env) {
             manager.require_auth();
         } else {
-            Self::require_admin(env);
+            crate::admin::require_admin(env);
         }
 
         let contract_map = Storage::new(env).contract;

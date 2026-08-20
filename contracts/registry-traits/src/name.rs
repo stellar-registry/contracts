@@ -8,7 +8,7 @@ mod to_str;
 use normalized::Normalized;
 
 pub(crate) const REGISTRY: &str = "registry";
-pub(crate) const UNVERIFIED: &str = "unverified";
+pub const UNVERIFIED: &str = "unverified";
 pub(crate) const ROOT: &str = "root";
 
 /// Checks that the name is a valid crate name.

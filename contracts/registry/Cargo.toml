@@ -17,12 +17,11 @@ doctest = false
 [dependencies]
 soroban-sdk = { workspace = true, features = ["alloc"] }
 admin-sep = { workspace = true }
-semver = { version = "1.0.28", default-features = false }
-soroban-sdk-tools = "0.1.2"
+# Importable registry #[contracttrait]s + storage/name/events/error live here.
+registry-traits = { path = "../registry-traits" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-soroban-sdk-tools = { version = "0.1.2", features = ["testutils"] }
 stellar-registry = { workspace = true }
 assert_matches = "1.5.0"
 stellar-xdr = { workspace = true }

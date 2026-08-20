@@ -1254,9 +1254,8 @@ dependencies = [
  "hello_world",
  "immutable_hello",
  "rand 0.9.2",
- "semver",
+ "registry-traits",
  "soroban-sdk",
- "soroban-sdk-tools",
  "stellar-registry",
  "stellar-xdr 26.0.0",
 ]
@@ -1265,8 +1264,7 @@ dependencies = [
 name = "registry-consumer"
 version = "0.0.0"
 dependencies = [
- "admin-sep",
- "registry",
+ "registry-traits",
  "soroban-sdk",
 ]
 
@@ -1278,6 +1276,15 @@ dependencies = [
  "soroban-sdk-tools",
  "stellar-registry",
  "tansu-stub",
+]
+
+[[package]]
+name = "registry-traits"
+version = "0.1.0"
+dependencies = [
+ "rand 0.9.2",
+ "semver",
+ "soroban-sdk",
 ]
 
 [[package]]
