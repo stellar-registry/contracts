@@ -11,5 +11,6 @@ mod registry;
 mod batch;
 mod manageable;
 mod names;
+mod stateless;
 mod unverified;
 mod verified;

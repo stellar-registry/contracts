@@ -3,7 +3,8 @@ use crate::storage::Storage;
 
 use soroban_sdk::{self, contracttrait, contracttype, Address, BytesN, Env, Map, String};
 
-use crate::{error::Error, Contract};
+use crate::error::Error;
+use crate::registry::contract::RegistryHelpers;
 
 #[contracttype(export = false)]
 #[derive(Clone)]
@@ -37,7 +38,7 @@ impl HashMap {
     }
 }
 
-impl Contract {
+impl RegistryHelpers {
     fn registry(env: &Env, name: &NormalizedName) -> Result<PublishedWasm, Error> {
         Storage::new(env)
             .wasm
@@ -143,7 +144,7 @@ pub trait Publishable {
         wasm_name: soroban_sdk::String,
         version: Option<soroban_sdk::String>,
     ) -> Result<soroban_sdk::BytesN<32>, Error> {
-        Contract::get_hash(env, &wasm_name.try_into()?, version)
+        RegistryHelpers::get_hash(env, &wasm_name.try_into()?, version)
     }
 
     /// Fetch the hash and version of a Wasm binary from the registry and bump TTL
@@ -154,10 +155,10 @@ pub trait Publishable {
         version: Option<soroban_sdk::String>,
     ) -> Result<(soroban_sdk::String, soroban_sdk::BytesN<32>), Error> {
         let wasm_name: NormalizedName = wasm_name.try_into()?;
-        let version = Contract::get_version(env, &wasm_name, version)?;
+        let version = RegistryHelpers::get_version(env, &wasm_name, version)?;
         Ok((
             version.clone(),
-            Contract::get_hash_and_bump(env, &wasm_name, Some(version))?,
+            RegistryHelpers::get_hash_and_bump(env, &wasm_name, Some(version))?,
         ))
     }
 
@@ -166,7 +167,7 @@ pub trait Publishable {
         env: &Env,
         wasm_name: soroban_sdk::String,
     ) -> Result<soroban_sdk::String, Error> {
-        Contract::most_recent_version(env, &wasm_name.try_into()?)
+        RegistryHelpers::most_recent_version(env, &wasm_name.try_into()?)
     }
 
     /// Publish a binary. Contract uploads bytes ensuring hash is correct.
@@ -179,7 +180,7 @@ pub trait Publishable {
         version: soroban_sdk::String,
     ) -> Result<(), Error> {
         let wasm_hash = env.deployer().upload_contract_wasm(wasm);
-        Contract::publish_hash(env, wasm_name, author, wasm_hash, version)
+        Self::publish_hash(env, wasm_name, author, wasm_hash, version)
     }
 
     /// Publish a hash of a binary.
@@ -196,9 +197,9 @@ pub trait Publishable {
         }
         HashMap::add(env, &wasm_hash);
         let wasm_name = wasm_name.try_into()?;
-        Contract::authorize(env, &author, &wasm_name)?;
-        Contract::validate_version(env, &version, &wasm_name)?;
-        Contract::set(env, &wasm_name, &version, &wasm_hash, author.clone());
+        RegistryHelpers::authorize(env, &author, &wasm_name)?;
+        RegistryHelpers::validate_version(env, &version, &wasm_name)?;
+        RegistryHelpers::set(env, &wasm_name, &version, &wasm_hash, author.clone());
         crate::events::Publish {
             wasm_name: wasm_name.to_string(),
             wasm_hash,

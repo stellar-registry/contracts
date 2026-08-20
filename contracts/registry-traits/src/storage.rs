@@ -1,25 +1,29 @@
-use admin_sep::AdministratableExtension;
 use soroban_sdk::{
     symbol_short,
     xdr::{ScErrorCode, ScErrorType},
-    Address, BytesN, Env, IntoVal, TryFromVal, Val,
+    Address, BytesN, Env, IntoVal, Symbol, TryFromVal, Val,
 };
-use soroban_sdk_tools::InstanceItem;
 
 use crate::{
     name::NormalizedName,
-    registry::{contract::DeployableClient, wasm::PublishedWasm},
+    registry::{
+        contract::{DeployableClient, RegistryHelpers},
+        wasm::PublishedWasm,
+    },
     storage::maps::{ToStorageKey, MAX_BUMP},
-    Contract, Error,
+    Error,
 };
 
 mod maps;
+
+/// Instance-storage key for the optional root-registry address. Byte-identical
+/// to the key the previous `InstanceItem<Address>` used.
+const ROOT_REGISTRY_KEY: Symbol = symbol_short!("ROOT_REG");
 
 pub struct Storage {
     pub wasm: maps::PersistentMap<NormalizedName, PublishedWasm, WasmKey>,
     pub contract: maps::PersistentMap<NormalizedName, ContractEntry, ContractKey>,
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
-    pub root_registry: InstanceItem<Address>,
 }
 
 impl Storage {
@@ -28,8 +32,22 @@ impl Storage {
             wasm: maps::PersistentMap::new(env),
             contract: maps::PersistentMap::new(env),
             hash: maps::PersistentMap::new(env),
-            root_registry: InstanceItem::new_raw(env, symbol_short!("ROOT_REG").to_val()),
         }
+    }
+
+    /// The root registry this (sub)registry defers to, if any.
+    pub fn root_registry(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&ROOT_REGISTRY_KEY)
+    }
+
+    /// Pin the root registry address (set once at construction).
+    pub fn set_root_registry(env: &Env, root: &Address) {
+        env.storage().instance().set(&ROOT_REGISTRY_KEY, root);
+    }
+
+    /// Bump the root registry entry's TTL to the max.
+    pub fn bump_root_registry(env: &Env) {
+        env.storage().instance().extend_ttl(MAX_BUMP, MAX_BUMP);
     }
 }
 
@@ -50,13 +68,7 @@ impl Storage {
             .instance()
             .set(&Manager::to_key(env, &()), new_manager);
     }
-    pub fn set_manager(env: &Env, new_manager: &Address) {
-        Contract::require_admin(env);
-        Self::set_manager_no_auth(env, new_manager);
-    }
-
-    pub fn remove_manager(env: &Env) {
-        Contract::require_admin(env);
+    pub fn remove_manager_no_auth(env: &Env) {
         env.storage().instance().remove(&Manager::to_key(env, &()));
     }
 
@@ -69,9 +81,8 @@ impl Storage {
         env: &Env,
         subregistry: &soroban_sdk::String,
     ) -> Result<Address, Error> {
-        let root = Storage::new(env).root_registry;
-        if let Some(root_id) = root.get() {
-            root.extend_ttl(MAX_BUMP, MAX_BUMP);
+        if let Some(root_id) = Storage::root_registry(env) {
+            Storage::bump_root_registry(env);
             let client = DeployableClient::new(env, &root_id);
             match client.try_fetch_contract_id(subregistry) {
                 Ok(Ok(addr)) => Ok(addr),
@@ -82,7 +93,7 @@ impl Storage {
                 _ => Err(Error::SubRegistryCrossContractCallFailed),
             }
         } else {
-            Contract::get_contract_id(env, &subregistry.try_into()?)
+            RegistryHelpers::get_contract_id(env, &subregistry.try_into()?)
         }
     }
 }

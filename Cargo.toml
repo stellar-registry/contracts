@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "contracts/registry",
+    "contracts/registry-traits",
     "contracts/registry-tansu-manager",
     "contracts/test/*",
 ]

@@ -1,0 +1,19 @@
+[package]
+name = "registry-consumer"
+description = "Compile-only proof that registry-traits' #[contracttrait]s are importable by a downstream contract."
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+# Depends ONLY on registry-traits (as perch will) — no admin-sep, no
+# soroban-sdk-tools, no registry cdylib.
+registry-traits = { path = "../../registry-traits" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

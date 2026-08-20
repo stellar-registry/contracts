@@ -1,23 +1,20 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
-use admin_sep::{Administratable, Upgradable};
-use soroban_sdk::Val;
-use soroban_sdk::Vec;
+use admin_sep::{Administratable, AdministratableExtension, Upgradable};
 use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
 
-pub mod error;
-pub mod events;
-pub mod name;
-pub mod registry;
-pub(crate) mod storage;
-pub mod version;
+// The registry's behavior — the importable `#[contracttrait]`s, storage layer,
+// name/version/event helpers, and error type — all live in `registry-traits`
+// so a downstream contract (on any supported soroban-sdk) can reuse them. This
+// crate is just the concrete, sdk-25 deployable contract that wires them onto
+// `Contract` and owns the constructor.
+pub use registry_traits::{error, events, name, registry, storage, version, Error};
 
-use crate::registry::contract::Proxyable;
-pub use error::Error;
-use registry::{
-    contract::{Batchable, Deployable, Manageable, Redeployable},
-    wasm::Publishable,
+use registry::contract::{
+    Batchable, Deployable, Manageable, Proxyable, Redeployable, RegistryHelpers,
+    StatelessDeployable,
 };
+use registry::wasm::Publishable;
 use storage::Storage;
 
 #[contract]
@@ -47,6 +44,9 @@ impl Publishable for Contract {}
 #[contractimpl(contracttrait)]
 impl Proxyable for Contract {}
 
+#[contractimpl(contracttrait)]
+impl StatelessDeployable for Contract {}
+
 #[contractimpl]
 impl Contract {
     /// - `admin`: account which will: upgrade this Registry itself; add, set, or remove `manager`
@@ -64,10 +64,10 @@ impl Contract {
             Storage::set_manager_no_auth(env, manager);
         }
         if let Some(root_address) = &root {
-            Storage::new(env).root_registry.set(root_address);
+            Storage::set_root_registry(env, root_address);
         } else {
             assert_with_error!(env, manager.is_some(), Error::ManagerRequired);
-            Self::deploy_unverified_and_claim_registry(env, admin)?;
+            RegistryHelpers::deploy_unverified_and_claim_registry(env, admin)?;
         }
         Ok(())
     }
@@ -79,12 +79,14 @@ impl Contract {
 
     /// Admin can set the new manager
     pub fn set_manager(env: &Env, new_manager: &Address) {
-        Storage::set_manager(env, new_manager);
+        Self::require_admin(env);
+        Storage::set_manager_no_auth(env, new_manager);
     }
 
     /// Admin can remove manager
     pub fn remove_manager(env: &Env) {
-        Storage::remove_manager(env);
+        Self::require_admin(env);
+        Storage::remove_manager_no_auth(env);
     }
 }
 
