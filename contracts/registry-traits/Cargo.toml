@@ -16,20 +16,20 @@ doctest = false
 
 [dependencies]
 # Version-flexible on purpose: this crate compiles against whatever soroban-sdk
-# the *consuming* workspace pins. In this workspace admin-sep (^25) holds it to
-# 25.3.x; perch (soroban-sdk 26) resolves it to 26.x. The source is verified to
-# build under 25, 26 and 27 — the only reason for an upper bound is cargo's
-# resolver: a range spanning two majors (e.g. `<28`) makes a 26 consumer pull
-# *two* soroban-sdk versions (26 for itself, 27 for this crate) instead of
-# unifying, so the ceiling must sit at the consumer's major + 1. Perch is on 26
-# → `<27`. When perch moves to 27, bump this (and the dev-dep) to `<28`.
-# It deliberately avoids soroban-sdk-tools and admin-sep, both of which cap at
-# sdk ^25 and would otherwise block a 26/27 consumer entirely.
-soroban-sdk = { version = ">=25.3.1, <27", features = ["alloc"] }
+# the *consuming* workspace pins. In this (contracts) workspace admin-sep (^25)
+# holds it to 25.3.x; perch (soroban-sdk 27.0.2) resolves it to 27.x. The source
+# is verified to build under 25, 26 and 27 — the only reason for an upper bound
+# is cargo's resolver: a range spanning two majors makes a consumer pull *two*
+# soroban-sdk versions instead of unifying, so the ceiling must sit at the
+# consumer's major + 1. Perch is on 27 → `<28` (this also still admits the
+# contracts workspace's 25.3.x, which admin-sep pins). It deliberately avoids
+# soroban-sdk-tools and admin-sep, both of which cap at sdk ^25 and would
+# otherwise block a 26/27 consumer entirely.
+soroban-sdk = { version = ">=25.3.1, <28", features = ["alloc"] }
 semver = { version = "1.0.28", default-features = false }
 
 [dev-dependencies]
-soroban-sdk = { version = ">=25.3.1, <27", features = ["testutils"] }
+soroban-sdk = { version = ">=25.3.1, <28", features = ["testutils"] }
 rand = { version = "0.9.2", default-features = false, features = [
     "small_rng",
     "os_rng",
