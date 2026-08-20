@@ -16,10 +16,20 @@ use soroban_sdk::{
     self, symbol_short, vec, Address, BytesN, Env, IntoVal, InvokeError, String, Symbol,
 };
 
-use crate::{error::Error, Contract};
+use crate::error::Error;
 use admin_sep::AdministratableExtension;
 
-impl Contract {
+/// Stateless namespace for the registry's internal helper routines.
+///
+/// The default bodies of the public `#[contracttrait]`s route through this
+/// zero-sized type instead of the concrete `crate::Contract`, so a downstream
+/// contract can `impl Deployable for MyContract {}` and reuse the exact same
+/// logic. Every method is contract-agnostic: all state lives behind the
+/// registry's fixed storage-key convention (`crate::storage`), which at
+/// runtime resolves to whichever contract is currently executing.
+pub struct RegistryHelpers;
+
+impl RegistryHelpers {
     pub(crate) fn assert_no_contract_entry_and_authorize(
         env: &Env,
         contract_admin: &Address,
@@ -257,10 +267,10 @@ pub trait Deployable {
     ) -> Result<soroban_sdk::Address, Error> {
         let contract_name: NormalizedName = contract_name.try_into()?;
         let wasm_name: NormalizedName = wasm_name.try_into()?;
-        Contract::assert_no_contract_entry_and_authorize(env, &admin, &contract_name)?;
+        RegistryHelpers::assert_no_contract_entry_and_authorize(env, &admin, &contract_name)?;
         let deployer = deployer.unwrap_or_else(|| env.current_contract_address());
         let salt = contract_name.hash();
-        let contract_id = Contract::fetch_hash_and_deploy(
+        let contract_id = RegistryHelpers::fetch_hash_and_deploy(
             env,
             &wasm_name,
             version,
@@ -268,7 +278,7 @@ pub trait Deployable {
             init,
             deployer.clone(),
         )?;
-        Contract::register_contract_name(env, &contract_name, &contract_id, &admin)?;
+        RegistryHelpers::register_contract_name(env, &contract_name, &contract_id, &admin)?;
         if wasm_name == name::registry(env) {
             events::SubRegistry {
                 name: contract_name.to_string(),
@@ -306,7 +316,7 @@ pub trait Deployable {
         }
         let contract_name: NormalizedName = contract_name.try_into()?;
         let wasm_name: NormalizedName = wasm_name.try_into()?;
-        Contract::assert_no_contract_entry_and_authorize(env, &admin, &contract_name)?;
+        RegistryHelpers::assert_no_contract_entry_and_authorize(env, &admin, &contract_name)?;
         let subregistry = PublishableClient::new(env, &subregistry);
         let (version, hash) =
             match subregistry.try_xcc_hash_and_version(&wasm_name.to_string(), &version) {
@@ -319,7 +329,7 @@ pub trait Deployable {
 
         let deployer = deployer.unwrap_or_else(|| env.current_contract_address());
         let salt = contract_name.hash();
-        let contract_id = Contract::deploy_with_hash_and_version(
+        let contract_id = RegistryHelpers::deploy_with_hash_and_version(
             env,
             &wasm_name,
             version,
@@ -329,7 +339,7 @@ pub trait Deployable {
             hash,
             Some(subregistry.address),
         );
-        Contract::register_contract_name(env, &contract_name, &contract_id, &admin)?;
+        RegistryHelpers::register_contract_name(env, &contract_name, &contract_id, &admin)?;
         Ok(contract_id)
     }
 
@@ -345,7 +355,14 @@ pub trait Deployable {
         deployer: soroban_sdk::Address,
     ) -> Result<soroban_sdk::Address, Error> {
         deployer.require_auth();
-        Contract::fetch_hash_and_deploy(env, &wasm_name.try_into()?, version, salt, init, deployer)
+        RegistryHelpers::fetch_hash_and_deploy(
+            env,
+            &wasm_name.try_into()?,
+            version,
+            salt,
+            init,
+            deployer,
+        )
     }
 
     /// Register a name for an existing contract which wasn't deployed by the registry
@@ -356,8 +373,8 @@ pub trait Deployable {
         owner: soroban_sdk::Address,
     ) -> Result<(), Error> {
         let contract_name = contract_name.try_into()?;
-        Contract::assert_no_contract_entry_and_authorize(env, &owner, &contract_name)?;
-        Contract::register_contract_name(env, &contract_name, &contract_address, &owner)?;
+        RegistryHelpers::assert_no_contract_entry_and_authorize(env, &owner, &contract_name)?;
+        RegistryHelpers::register_contract_name(env, &contract_name, &contract_address, &owner)?;
         Ok(())
     }
 
@@ -366,7 +383,7 @@ pub trait Deployable {
         env: &Env,
         contract_name: soroban_sdk::String,
     ) -> Result<soroban_sdk::Address, Error> {
-        Contract::get_contract_id(env, &contract_name.try_into()?)
+        RegistryHelpers::get_contract_id(env, &contract_name.try_into()?)
     }
 
     /// Look up the owner of a deployed contract
@@ -374,12 +391,12 @@ pub trait Deployable {
         env: &Env,
         contract_name: soroban_sdk::String,
     ) -> Result<soroban_sdk::Address, Error> {
-        Contract::get_contract_owner(env, &contract_name.try_into()?)
+        RegistryHelpers::get_contract_owner(env, &contract_name.try_into()?)
     }
 }
 
 #[contracttrait]
-pub trait Batchable {
+pub trait Batchable: AdministratableExtension {
     /// Stage a batch of existing contracts for registration.
     /// Requires manager auth if manager is set, otherwise admin auth.
     /// Each entry is (`contract_name`, `contract_address`, `owner`).
@@ -395,7 +412,7 @@ pub trait Batchable {
         if let Some(manager) = Storage::manager(env) {
             manager.require_auth();
         } else {
-            Contract::require_admin(env);
+            Self::require_admin(env);
         }
 
         let contract_map = Storage::new(env).contract;
@@ -439,7 +456,12 @@ pub trait Batchable {
             let (name_str, contract_address, owner) =
                 batch.get(i).ok_or(Error::BatchEntryExpired)?;
             let contract_name: NormalizedName = name_str.try_into()?;
-            Contract::register_contract_name(env, &contract_name, &contract_address, &owner)?;
+            RegistryHelpers::register_contract_name(
+                env,
+                &contract_name,
+                &contract_address,
+                &owner,
+            )?;
             processed += 1;
         }
 
@@ -470,7 +492,7 @@ pub trait Manageable {
             .get(&contract_name)
             .ok_or(Error::NoSuchContractDeployed)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        RegistryHelpers::require_owner_or_manager(env, &entry.owner);
 
         storage.contract.extend_ttl_max(&contract_name);
         storage.contract.set(
@@ -503,7 +525,7 @@ pub trait Manageable {
             .get(&contract_name)
             .ok_or(Error::NoSuchContractDeployed)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        RegistryHelpers::require_owner_or_manager(env, &entry.owner);
         storage.contract.extend_ttl_max(&contract_name);
         storage.contract.set(
             &contract_name,
@@ -537,7 +559,7 @@ pub trait Manageable {
             .get(&old_name)
             .ok_or(Error::NoSuchContractDeployed)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        RegistryHelpers::require_owner_or_manager(env, &entry.owner);
 
         if storage.contract.has(&new_name) {
             return Err(Error::AlreadyDeployed);
@@ -565,9 +587,9 @@ pub trait Manageable {
         let contract_name: NormalizedName = contract_name.try_into()?;
 
         let mut storage = Storage::new(env);
-        let entry = Contract::get_contract_entry(env, &contract_name)?;
+        let entry = RegistryHelpers::get_contract_entry(env, &contract_name)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        RegistryHelpers::require_owner_or_manager(env, &entry.owner);
 
         storage.contract.extend_ttl_max(&contract_name);
         storage.contract.set(
@@ -594,7 +616,7 @@ pub trait Redeployable {
         upgrade_fn: Option<soroban_sdk::Symbol>,
     ) -> Result<soroban_sdk::Address, Error> {
         let wasm_hash = env.deployer().upload_contract_wasm(wasm);
-        Contract::upgrade_internal(env, &name.try_into()?, &wasm_hash, upgrade_fn)
+        RegistryHelpers::upgrade_internal(env, &name.try_into()?, &wasm_hash, upgrade_fn)
     }
 
     /// Upgrades a contract by calling the upgrade function.
@@ -606,8 +628,68 @@ pub trait Redeployable {
         version: Option<soroban_sdk::String>,
         upgrade_fn: Option<soroban_sdk::Symbol>,
     ) -> Result<soroban_sdk::Address, Error> {
-        let wasm_hash = Contract::get_hash_and_bump(env, &wasm_name.try_into()?, version)?;
-        Contract::upgrade_internal(env, &name.try_into()?, &wasm_hash, upgrade_fn)
+        let wasm_hash = RegistryHelpers::get_hash_and_bump(env, &wasm_name.try_into()?, version)?;
+        RegistryHelpers::upgrade_internal(env, &name.try_into()?, &wasm_hash, upgrade_fn)
+    }
+}
+
+#[contracttrait]
+pub trait StatelessDeployable {
+    /// Content-addressed deploy: `salt = wasm_hash` and the constructor is
+    /// invoked with **no arguments, ever**.
+    ///
+    /// Because the salt is the wasm hash and the init args are always empty,
+    /// the deployed address is a pure function of `(deployer, wasm_hash)` — so
+    /// anyone deploying the same wasm from the same deployer lands on the exact
+    /// same contract id, with no shared secret and no ABI introspection. A wasm
+    /// whose `__constructor` requires arguments simply traps; that is the
+    /// intended, self-enforcing "deployer-independent" guarantee.
+    ///
+    /// Idempotent: if the derived address already holds an executable this is a
+    /// no-op success returning the existing instance — it never traps with
+    /// [`Error::AlreadyDeployed`].
+    fn deploy_stateless(
+        env: &Env,
+        wasm_name: soroban_sdk::String,
+        version: Option<soroban_sdk::String>,
+        deployer: Option<soroban_sdk::Address>,
+    ) -> Result<soroban_sdk::Address, Error> {
+        let wasm_name: NormalizedName = wasm_name.try_into()?;
+        // A caller-supplied deployer must authorize at the root of the call so
+        // it can't be used to squat someone else's deterministic namespace;
+        // defaulting to the registry itself needs no external auth.
+        let deployer = match deployer {
+            Some(deployer) => {
+                deployer.require_auth();
+                deployer
+            }
+            None => env.current_contract_address(),
+        };
+        // `salt == wasm_hash` — the one line that distinguishes a stateless
+        // (content-addressed) deploy from the name-salted `deploy`.
+        let hash = RegistryHelpers::get_hash_and_bump(env, &wasm_name, version.clone())?;
+
+        // Idempotency: derive the deterministic address and short-circuit if a
+        // contract already lives there.
+        let derived = env
+            .deployer()
+            .with_address(deployer.clone(), hash.clone())
+            .deployed_address();
+        if derived.executable().is_some() {
+            return Ok(derived);
+        }
+
+        let version = RegistryHelpers::get_version(env, &wasm_name, version)?;
+        Ok(RegistryHelpers::deploy_with_hash_and_version(
+            env,
+            &wasm_name,
+            version,
+            hash.clone(), // salt = wasm hash
+            None,         // init = () ALWAYS — deployer-independence is self-enforcing
+            deployer,
+            hash,
+            None,
+        ))
     }
 }
 
@@ -618,10 +700,10 @@ pub trait Proxyable {
         env: &Env,
         contract_name: soroban_sdk::String,
         contract_fn: soroban_sdk::Symbol,
-        args: Vec<Val>,
+        args: soroban_sdk::Vec<soroban_sdk::Val>,
     ) -> Result<soroban_sdk::Val, Error> {
         let contract_name: NormalizedName = contract_name.try_into()?;
-        let entry = Contract::get_contract_entry(env, &contract_name)?;
+        let entry = RegistryHelpers::get_contract_entry(env, &contract_name)?;
         if entry.flagged {
             return Err(Error::ProxyContractCompromised);
         }

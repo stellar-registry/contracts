@@ -1,0 +1,18 @@
+[package]
+name = "registry-consumer"
+description = "Compile-only proof that the registry #[contracttrait]s are importable by a downstream contract."
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+admin-sep = { workspace = true }
+registry = { path = "../../registry" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

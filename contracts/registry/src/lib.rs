@@ -1,8 +1,6 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
-use admin_sep::{Administratable, Upgradable};
-use soroban_sdk::Val;
-use soroban_sdk::Vec;
+use admin_sep::{Administratable, AdministratableExtension, Upgradable};
 use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
 
 pub mod error;
@@ -12,10 +10,10 @@ pub mod registry;
 pub(crate) mod storage;
 pub mod version;
 
-use crate::registry::contract::Proxyable;
+use crate::registry::contract::{Proxyable, RegistryHelpers};
 pub use error::Error;
 use registry::{
-    contract::{Batchable, Deployable, Manageable, Redeployable},
+    contract::{Batchable, Deployable, Manageable, Redeployable, StatelessDeployable},
     wasm::Publishable,
 };
 use storage::Storage;
@@ -47,6 +45,9 @@ impl Publishable for Contract {}
 #[contractimpl(contracttrait)]
 impl Proxyable for Contract {}
 
+#[contractimpl(contracttrait)]
+impl StatelessDeployable for Contract {}
+
 #[contractimpl]
 impl Contract {
     /// - `admin`: account which will: upgrade this Registry itself; add, set, or remove `manager`
@@ -67,7 +68,7 @@ impl Contract {
             Storage::new(env).root_registry.set(root_address);
         } else {
             assert_with_error!(env, manager.is_some(), Error::ManagerRequired);
-            Self::deploy_unverified_and_claim_registry(env, admin)?;
+            RegistryHelpers::deploy_unverified_and_claim_registry(env, admin)?;
         }
         Ok(())
     }
@@ -79,12 +80,14 @@ impl Contract {
 
     /// Admin can set the new manager
     pub fn set_manager(env: &Env, new_manager: &Address) {
-        Storage::set_manager(env, new_manager);
+        Self::require_admin(env);
+        Storage::set_manager_no_auth(env, new_manager);
     }
 
     /// Admin can remove manager
     pub fn remove_manager(env: &Env) {
-        Storage::remove_manager(env);
+        Self::require_admin(env);
+        Storage::remove_manager_no_auth(env);
     }
 }
 

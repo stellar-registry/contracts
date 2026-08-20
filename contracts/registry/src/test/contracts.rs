@@ -14,6 +14,10 @@ pub mod hello_world_v3 {
     soroban_sdk::contractimport!(file = "../../target/stellar/local/hello_world_v3.wasm");
 }
 
+pub mod immutable_hello {
+    soroban_sdk::contractimport!(file = "../../target/stellar/local/immutable_hello.wasm");
+}
+
 pub fn hw_hash(env: &Env) -> BytesN<32> {
     env.deployer().upload_contract_wasm(hello_world::WASM)
 }
@@ -42,4 +46,14 @@ pub fn hw_client_v3<'a>(env: &Env, address: &Address) -> hello_world_v3::Client<
 }
 pub fn hw_bytes_v3(env: &Env) -> Bytes {
     Bytes::from_slice(env, hello_world_v3::WASM)
+}
+
+pub fn immutable_hash(env: &Env) -> BytesN<32> {
+    env.deployer().upload_contract_wasm(immutable_hello::WASM)
+}
+pub fn immutable_client<'a>(env: &Env, address: &Address) -> immutable_hello::Client<'a> {
+    immutable_hello::Client::new(env, address)
+}
+pub fn immutable_bytes(env: &Env) -> Bytes {
+    Bytes::from_slice(env, immutable_hello::WASM)
 }

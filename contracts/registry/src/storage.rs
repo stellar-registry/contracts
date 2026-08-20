@@ -1,4 +1,3 @@
-use admin_sep::AdministratableExtension;
 use soroban_sdk::{
     symbol_short,
     xdr::{ScErrorCode, ScErrorType},
@@ -8,9 +7,12 @@ use soroban_sdk_tools::InstanceItem;
 
 use crate::{
     name::NormalizedName,
-    registry::{contract::DeployableClient, wasm::PublishedWasm},
+    registry::{
+        contract::{DeployableClient, RegistryHelpers},
+        wasm::PublishedWasm,
+    },
     storage::maps::{ToStorageKey, MAX_BUMP},
-    Contract, Error,
+    Error,
 };
 
 mod maps;
@@ -50,13 +52,7 @@ impl Storage {
             .instance()
             .set(&Manager::to_key(env, &()), new_manager);
     }
-    pub fn set_manager(env: &Env, new_manager: &Address) {
-        Contract::require_admin(env);
-        Self::set_manager_no_auth(env, new_manager);
-    }
-
-    pub fn remove_manager(env: &Env) {
-        Contract::require_admin(env);
+    pub fn remove_manager_no_auth(env: &Env) {
         env.storage().instance().remove(&Manager::to_key(env, &()));
     }
 
@@ -82,7 +78,7 @@ impl Storage {
                 _ => Err(Error::SubRegistryCrossContractCallFailed),
             }
         } else {
-            Contract::get_contract_id(env, &subregistry.try_into()?)
+            RegistryHelpers::get_contract_id(env, &subregistry.try_into()?)
         }
     }
 }
