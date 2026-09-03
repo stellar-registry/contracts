@@ -20,12 +20,8 @@ stellar +args:
 build_contract p:
     stellar contract build --package {{ p }}
 
-# Build all contracts with the size-optimized profile. Uses `stellar scaffold
-# build` (not plain `stellar contract build`) so wasm is staged to
-# target/stellar/<network>/, which the registry tests' `contractimport!` and
-# registry-tansu-manager's `import_contract_client!(tansu_stub)` both resolve
-# against. STELLAR_NETWORK defaults to `local` (see stellar-build), matching the
-# `target/stellar/local/...` paths the tests import from.
+# TODO: deploy local `registry` and, via it, `tansu` for reference by
+# `import_contract[_client]!` macros
 build:
     stellar scaffold build
 

@@ -20,15 +20,17 @@ pub enum Error {
     MultipleOutcomes,
 }
 
-// Proposal/status types are derived from the tansu-stub contract's wasm spec.
+// Proposal/status types are derived from the tansu contract's wasm spec.
 // At runtime this manager points at *real* Tansu; the stub matches Tansu's
 // wire format so the generated `get_proposal` client decodes a live proposal
 // correctly.
-stellar_registry::import_contract_client!(tansu_stub);
+stellar_registry::import_contract_client!(tansu);
 
 #[contractstorage(auto_shorten = true)]
 pub struct Storage {
     /// Tansu DAO contract whose proposals this manager drives.
+    // TODO: move behind testnet-only feature flag to keep back-compatible with already-deployed
+    // testnet registry tansu manager (or migrate to new contract?)
     tansu: InstanceItem<Address>,
     /// Tansu workspace key this manager represents. All Tansu lookups are
     /// keyed by this — a wrong-project caller can't piggyback.
@@ -44,14 +46,9 @@ pub struct RegistryTansuManager;
 
 #[contractimpl]
 impl RegistryTansuManager {
-    pub fn __constructor(env: &Env, tansu: &Address, project_key: &Bytes, registry: &Address) {
-        Storage::set_tansu(env, tansu);
+    pub fn __constructor(env: &Env, project_key: &Bytes, registry: &Address) {
         Storage::set_project_key(env, project_key);
         Storage::set_registry(env, registry);
-    }
-
-    pub fn tansu(env: &Env) -> Address {
-        Storage::get_tansu(env).unwrap()
     }
 
     pub fn project_key(env: &Env) -> Bytes {
@@ -94,11 +91,10 @@ impl RegistryTansuManager {
     /// prevents the same proposal being triggered twice — no separate
     /// replay guard needed here.
     pub fn trigger(env: &Env, proposal_id: u32) -> Result<(), Error> {
-        let tansu = Storage::get_tansu(env).unwrap();
+        let tansu_client = stellar_registry::import_contract!(env, "tansu");
         let project_key = Storage::get_project_key(env).unwrap();
 
-        let proposal =
-            tansu_stub::Client::new(env, &tansu).get_proposal(&project_key, &proposal_id);
+        let proposal = tansu_client.get_proposal(&project_key, &proposal_id);
         let outcomes = proposal
             .outcome_contracts
             .ok_or(Error::NoOutcomeContracts)?;
@@ -123,7 +119,6 @@ impl RegistryTansuManager {
         // maintainer = self — must match the project's `maintainers` list in
         // Tansu (configured at registration / update_config time).
         let _: Val = env.invoke_contract(
-            &tansu,
             &Symbol::new(env, "execute"),
             vec![
                 env,
