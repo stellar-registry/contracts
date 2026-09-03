@@ -6,12 +6,6 @@ use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
 
 use crate::{RegistryTansuManager, RegistryTansuManagerClient};
 
-// Wasm-import the standalone tansu-stub so we can register it as the Tansu
-// the manager queries during `__check_auth`.
-mod tansu_stub_wasm {
-    soroban_sdk_tools::contractimport!(file = "../../target/stellar/local/tansu_stub.wasm");
-}
-
 #[test]
 fn constructor_stores_values() {
     let env = Env::default();

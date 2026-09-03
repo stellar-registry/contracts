@@ -91,10 +91,10 @@ impl RegistryTansuManager {
     /// prevents the same proposal being triggered twice — no separate
     /// replay guard needed here.
     pub fn trigger(env: &Env, proposal_id: u32) -> Result<(), Error> {
-        let tansu = stellar_registry::import_contract!(env, "tansu");
+        let tansu_client = stellar_registry::import_contract!(env, "tansu");
         let project_key = Storage::get_project_key(env).unwrap();
 
-        let proposal = tansu.get_proposal(&project_key, &proposal_id);
+        let proposal = tansu_client.get_proposal(&project_key, &proposal_id);
         let outcomes = proposal
             .outcome_contracts
             .ok_or(Error::NoOutcomeContracts)?;
