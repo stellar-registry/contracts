@@ -53,6 +53,9 @@ fn use_publish_method() {
         Ok(Error::NoSuchVersion)
     );
 
+    // A different author can only publish to an existing name if the current
+    // author co-approves. Here only `other_address` signs, so the current
+    // author's `require_auth` aborts.
     let other_address = &Address::generate(env);
     let random_bytes: BytesN<32> = BytesN::random(env);
     registry.mock_auth_for(
@@ -64,7 +67,7 @@ fn use_publish_method() {
         client
             .try_publish_hash(name, other_address, &random_bytes, &version)
             .unwrap_err(),
-        Ok(Error::WasmNameAlreadyTaken)
+        Err(InvokeError::Abort)
     );
 }
 
@@ -212,7 +215,10 @@ fn hello_world_deploy_v2() {
         Err(Ok(Error::VersionMustBeGreaterThanCurrent))
     );
 
-    // Step 4: bob tries to publish hello_v1 with a different version and different bytes, it fails
+    // Step 4: bob tries to publish a new version. The current author (alice)
+    // co-approves (she is the only address mocked), but bob himself does not
+    // sign, so bob's own `require_auth` aborts — both the current author and the
+    // new author must approve.
     registry.mock_auth_with_addresses_for_publish(
         hello_wasm,
         bob,
@@ -222,7 +228,7 @@ fn hello_world_deploy_v2() {
     );
     assert_eq!(
         registry_client.try_publish(hello_wasm, bob, &hw_bytes_v2(env), v1,),
-        Err(Ok(Error::WasmNameAlreadyTaken))
+        Err(Err(InvokeError::Abort))
     );
 
     // Step 5: alice publishes new bytes (hello_v2)

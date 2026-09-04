@@ -114,15 +114,14 @@ impl Contract {
         Ok(())
     }
 
-    pub(crate) fn authorize(
-        env: &Env,
-        author: &Address,
-        wasm_name: &NormalizedName,
-    ) -> Result<(), Error> {
+    // Every failure path aborts via `require_auth`'s host trap, so this never
+    // returns a recoverable error.
+    pub(crate) fn authorize(env: &Env, author: &Address, wasm_name: &NormalizedName) {
         // check if already published
         if let Some(current) = &Self::author(env, wasm_name) {
+            // if a new author, old must also approve
             if author != current {
-                return Err(Error::WasmNameAlreadyTaken);
+                current.require_auth();
             }
             author.require_auth();
         } else if let Some(manager) = Storage::manager(env) {
@@ -131,7 +130,6 @@ impl Contract {
         } else {
             author.require_auth();
         }
-        Ok(())
     }
 }
 
@@ -171,6 +169,7 @@ pub trait Publishable {
 
     /// Publish a binary. Contract uploads bytes ensuring hash is correct.
     /// If contract had been previously published only previous author can publish again
+    /// or authorize a new `author`.
     fn publish(
         env: &Env,
         wasm_name: soroban_sdk::String,
@@ -184,6 +183,7 @@ pub trait Publishable {
 
     /// Publish a hash of a binary.
     /// If contract had been previously published only previous author can publish again
+    /// or authorize a new `author`.
     fn publish_hash(
         env: &Env,
         wasm_name: soroban_sdk::String,
@@ -196,7 +196,7 @@ pub trait Publishable {
         }
         HashMap::add(env, &wasm_hash);
         let wasm_name = wasm_name.try_into()?;
-        Contract::authorize(env, &author, &wasm_name)?;
+        Contract::authorize(env, &author, &wasm_name);
         Contract::validate_version(env, &version, &wasm_name)?;
         Contract::set(env, &wasm_name, &version, &wasm_hash, author.clone());
         crate::events::Publish {

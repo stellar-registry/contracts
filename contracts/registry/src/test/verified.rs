@@ -49,6 +49,9 @@ fn use_publish_method() {
         Ok(Error::NoSuchVersion)
     );
 
+    // A different author can only publish to an existing name if the current
+    // author co-approves. Here only `other_address` signs, so the current
+    // author's (admin's) `require_auth` aborts.
     let other_address = &Address::generate(env);
     let random_bytes: BytesN<32> = BytesN::random(env);
     registry.mock_auth_for(
@@ -60,7 +63,79 @@ fn use_publish_method() {
         client
             .try_publish_hash(name, other_address, &random_bytes, &version)
             .unwrap_err(),
-        Ok(Error::WasmNameAlreadyTaken)
+        Err(InvokeError::Abort)
+    );
+}
+
+#[test]
+fn cross_author_publish_requires_both_authors() {
+    // A different author may publish a new version of an existing wasm name, but
+    // only if BOTH the current author and the new author approve. A successful
+    // cross-author publish does NOT transfer ownership: the original author
+    // remains the registered author.
+    let registry = &Registry::new();
+    let env = registry.env();
+    let client = registry.client();
+
+    let wasm = &to_string(env, "shared_wasm");
+    let v0 = &registry.default_version();
+    let v1 = &to_string(env, "0.0.1");
+    let v2 = &to_string(env, "0.0.2");
+
+    let alice = &Address::generate(env); // original author
+    let bob = &Address::generate(env); // a different author
+
+    // alice publishes the initial version (manager == admin approves the first
+    // publish of a fresh name).
+    registry.mock_auth_for_publish(wasm, alice, &Some(v0.clone()), &hw_bytes(env));
+    client.publish(wasm, alice, &hw_bytes(env), v0);
+    assert_eq!(client.fetch_hash(wasm, &None), hw_hash(env));
+
+    // bob signs alone: the current author (alice) never signs, so alice's
+    // `require_auth` aborts.
+    registry.mock_auth_for(
+        bob,
+        "publish",
+        ContractArgs::publish(wasm, bob, &hw_bytes_v2(env), v1),
+    );
+    assert_eq!(
+        client.try_publish(wasm, bob, &hw_bytes_v2(env), v1),
+        Err(Err(InvokeError::Abort))
+    );
+
+    // alice signs alone: bob (the new author) never signs, so bob's
+    // `require_auth` aborts.
+    registry.mock_auth_for(
+        alice,
+        "publish",
+        ContractArgs::publish(wasm, bob, &hw_bytes_v2(env), v1),
+    );
+    assert_eq!(
+        client.try_publish(wasm, bob, &hw_bytes_v2(env), v1),
+        Err(Err(InvokeError::Abort))
+    );
+
+    // With both the current author (alice) and the new author (bob) signing, the
+    // cross-author publish succeeds and the new version is recorded.
+    registry.mock_auths_for(
+        &[alice, bob],
+        "publish",
+        ContractArgs::publish(wasm, bob, &hw_bytes_v2(env), v1),
+    );
+    client.publish(wasm, bob, &hw_bytes_v2(env), v1);
+    assert_eq!(client.fetch_hash(wasm, &None), hw_hash_v2(env));
+
+    // Ownership was NOT transferred to bob: alice is still the registered
+    // author, so bob still cannot publish alone — his solo attempt aborts on
+    // alice's `require_auth`.
+    registry.mock_auth_for(
+        bob,
+        "publish",
+        ContractArgs::publish(wasm, bob, &hw_bytes_v3(env), v2),
+    );
+    assert_eq!(
+        client.try_publish(wasm, bob, &hw_bytes_v3(env), v2),
+        Err(Err(InvokeError::Abort))
     );
 }
 
@@ -305,11 +380,13 @@ fn hello_world_deploy_v2() {
         Err(Ok(Error::VersionMustBeGreaterThanCurrent))
     );
 
-    // Step 4: bob tries to publish hello_v1 with a different version and different bytes, it fails
+    // Step 4: bob tries to publish a new version, but the current author (alice)
+    // never co-approves, so alice's `require_auth` aborts. Only [bob, admin] are
+    // mocked here, not alice.
     registry.mock_auth_for_publish(hello_wasm, bob, sv1, &hw_bytes_v2(env));
     assert_eq!(
         registry_client.try_publish(hello_wasm, bob, &hw_bytes_v2(env), v1,),
-        Err(Ok(Error::WasmNameAlreadyTaken))
+        Err(Err(InvokeError::Abort))
     );
 
     // Step 5: alice publishes new bytes (hello_v2)
