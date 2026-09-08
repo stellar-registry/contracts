@@ -120,7 +120,6 @@ impl Contract {
     /// If managed registry, first publish must be by manager.
     /// Otherwise the first author claims the name.
     /// From then on the author must approve the publish unless a new author is pre-authorized
-    /// or authorized in this
     pub(crate) fn authorize(
         env: &Env,
         author: &Address,
