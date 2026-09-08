@@ -4,7 +4,7 @@ use soroban_sdk::{
     xdr::{ScErrorCode, ScErrorType},
     Address, BytesN, Env, IntoVal, TryFromVal, Val,
 };
-use soroban_sdk_tools::InstanceItem;
+use soroban_sdk_tools::{InstanceItem, TemporaryMap};
 
 use crate::{
     name::NormalizedName,
@@ -13,13 +13,14 @@ use crate::{
     Contract, Error,
 };
 
-mod maps;
+pub(crate) mod maps;
 
 pub struct Storage {
     pub wasm: maps::PersistentMap<NormalizedName, PublishedWasm, WasmKey>,
     pub contract: maps::PersistentMap<NormalizedName, ContractEntry, ContractKey>,
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
     pub root_registry: InstanceItem<Address>,
+    pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
 }
 
 impl Storage {
@@ -29,6 +30,7 @@ impl Storage {
             contract: maps::PersistentMap::new(env),
             hash: maps::PersistentMap::new(env),
             root_registry: InstanceItem::new_raw(env, symbol_short!("ROOT_REG").to_val()),
+            preauth_transfers: TemporaryMap::new_raw(env),
         }
     }
 }
@@ -83,6 +85,19 @@ impl Storage {
             }
         } else {
             Contract::get_contract_id(env, &subregistry.try_into()?)
+        }
+    }
+
+    /// Check if the new author is approved to have authorship transfered to them
+    pub fn approved_to_transfer(
+        env: &Env,
+        wasm_name: &NormalizedName,
+        new_author: &Address,
+    ) -> bool {
+        if let Some(approved_author) = Storage::new(env).preauth_transfers.get(wasm_name).as_ref() {
+            approved_author == new_author
+        } else {
+            false
         }
     }
 }

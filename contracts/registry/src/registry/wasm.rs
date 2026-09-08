@@ -1,5 +1,7 @@
-use crate::name::NormalizedName;
-use crate::storage::Storage;
+use crate::{
+    name::NormalizedName,
+    storage::{maps::MAX_BUMP, Storage},
+};
 
 use soroban_sdk::{self, contracttrait, contracttype, Address, BytesN, Env, Map, String};
 
@@ -88,9 +90,10 @@ impl Contract {
         let mut wasm_map = Storage::new(env).wasm;
         let mut registry = wasm_map.get(name).unwrap_or_else(|| PublishedWasm {
             versions: Map::new(env),
-            author,
+            author: author.clone(),
             current_version: version.clone(),
         });
+        registry.author = author;
         registry.versions.set(version.clone(), hash.clone());
         registry.current_version = version.clone();
         wasm_map.set(name, &registry);
@@ -114,6 +117,9 @@ impl Contract {
         Ok(())
     }
 
+    /// If managed registry, first publish must be by manager.
+    /// Otherwise the first author claims the name.
+    /// From then on the author must approve the publish unless a new author is pre-authorized
     pub(crate) fn authorize(
         env: &Env,
         author: &Address,
@@ -121,10 +127,13 @@ impl Contract {
     ) -> Result<(), Error> {
         // check if already published
         if let Some(current) = &Self::author(env, wasm_name) {
-            if author != current {
+            if author == current {
+                current.require_auth();
+            } else if Storage::approved_to_transfer(env, wasm_name, author) {
+                author.require_auth();
+            } else {
                 return Err(Error::WasmNameAlreadyTaken);
             }
-            author.require_auth();
         } else if let Some(manager) = Storage::manager(env) {
             // Manager must approve initial Publish
             manager.require_auth();
@@ -206,6 +215,24 @@ pub trait Publishable {
             author,
         }
         .publish(env);
+        Ok(())
+    }
+
+    /// An author of a currently published binary can temporarly preauthorize a new author
+    /// to publish and become the author for the next release
+    fn preauthorize_author_transfer(
+        env: &Env,
+        wasm_name: &soroban_sdk::String,
+        new_author: &soroban_sdk::Address,
+    ) -> Result<(), Error> {
+        let wasm_name: NormalizedName = wasm_name.try_into()?;
+        let Some(author) = Contract::author(env, &wasm_name) else {
+            return Err(Error::NoSuchWasmPublished);
+        };
+        author.require_auth();
+        let transfers = Storage::new(env).preauth_transfers;
+        transfers.set(&wasm_name, new_author);
+        transfers.extend_ttl(&wasm_name, MAX_BUMP, MAX_BUMP);
         Ok(())
     }
 }

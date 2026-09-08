@@ -8,6 +8,7 @@ extern crate std;
 mod contracts;
 mod registry;
 
+mod author_transfer;
 mod batch;
 mod manageable;
 mod names;
