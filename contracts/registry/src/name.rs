@@ -1,4 +1,5 @@
 use soroban_sdk::{crypto::Hash, Bytes, Env, IntoVal, String, TryFromVal, Val};
+use soroban_sdk_tools::StorageKey;
 
 use crate::error::Error;
 
@@ -91,6 +92,12 @@ impl TryFromVal<Env, Val> for NormalizedName {
     fn try_from_val(env: &Env, v: &Val) -> Result<Self, soroban_sdk::Error> {
         let name: String = TryFromVal::try_from_val(env, v)?;
         Ok(name.try_into()?)
+    }
+}
+
+impl StorageKey for NormalizedName {
+    fn to_key(&self, env: &Env) -> Val {
+        self.into_val(env)
     }
 }
 
