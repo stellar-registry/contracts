@@ -3,7 +3,11 @@ use core::marker::PhantomData;
 
 use soroban_sdk::{Env, IntoVal, TryFromVal, Val};
 
-pub const MAX_BUMP: u32 = 535_679;
+/// Soroban protocol limits for bumping persistent-entry TTLs (in ledgers).
+/// Max is ~1 year; min is ~30 days (assuming ~5s/ledger).
+pub const MAX_BUMP: u32 = 6_312_000;
+#[allow(dead_code)]
+pub const MIN_BUMP: u32 = 535_679;
 
 pub trait ToStorageKey<Key: IntoVal<Env, Val> + Clone> {
     fn to_key(env: &Env, k: &Key) -> Val;
