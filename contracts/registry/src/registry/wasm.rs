@@ -223,7 +223,7 @@ pub trait Publishable {
     fn preauthorize_author_transfer(
         env: &Env,
         wasm_name: &soroban_sdk::String,
-        new_owner: &soroban_sdk::Address,
+        new_author: &soroban_sdk::Address,
     ) -> Result<(), Error> {
         let wasm_name: NormalizedName = wasm_name.try_into()?;
         let Some(author) = Contract::author(env, &wasm_name) else {
@@ -231,7 +231,7 @@ pub trait Publishable {
         };
         author.require_auth();
         let transfers = Storage::new(env).preauth_transfers;
-        transfers.set(&wasm_name, new_owner);
+        transfers.set(&wasm_name, new_author);
         transfers.extend_ttl(&wasm_name, MAX_BUMP, MAX_BUMP);
         Ok(())
     }
