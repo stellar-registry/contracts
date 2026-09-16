@@ -106,3 +106,140 @@ pub trait AccountRegistrable {
         Contract::get_account_owner(env, &account_name.try_into()?)
     }
 }
+
+#[contracttrait]
+pub trait AccountManageable {
+    /// Update the owner of a registered account name.
+    /// Requires current owner auth, or manager auth if manager is set.
+    fn update_account_owner(
+        env: &Env,
+        account_name: soroban_sdk::String,
+        new_owner: soroban_sdk::Address,
+    ) -> Result<(), Error> {
+        let account_name: NormalizedName = account_name.try_into()?;
+        let mut storage = Storage::new(env);
+        let entry = storage
+            .account
+            .get(&account_name)
+            .ok_or(Error::NoSuchAccountRegistered)?;
+
+        Contract::require_owner_or_manager(env, &entry.owner);
+
+        storage.account.extend_ttl_max(&account_name);
+        storage.account.set(
+            &account_name,
+            &AccountEntry {
+                owner: new_owner.clone(),
+                address: entry.address,
+                flagged: entry.flagged,
+            },
+        );
+        crate::events::UpdateAccountOwner {
+            account_name: account_name.to_string(),
+            new_owner,
+        }
+        .publish(env);
+        Ok(())
+    }
+
+    /// Update the G-address of a registered account name.
+    /// Requires current owner auth, or manager auth if manager is set.
+    fn update_account_address(
+        env: &Env,
+        account_name: soroban_sdk::String,
+        new_address: soroban_sdk::Address,
+    ) -> Result<(), Error> {
+        let account_name: NormalizedName = account_name.try_into()?;
+        let mut storage = Storage::new(env);
+        let entry = storage
+            .account
+            .get(&account_name)
+            .ok_or(Error::NoSuchAccountRegistered)?;
+
+        Contract::require_owner_or_manager(env, &entry.owner);
+
+        match new_address.executable() {
+            Some(Executable::Account) => {}
+            Some(_) => return Err(Error::NotAccountAddress),
+            None => return Err(Error::ContractIdAddressDoesNotExist),
+        }
+
+        storage.account.extend_ttl_max(&account_name);
+        storage.account.set(
+            &account_name,
+            &AccountEntry {
+                owner: entry.owner,
+                address: new_address.clone(),
+                flagged: entry.flagged,
+            },
+        );
+        crate::events::UpdateAccountAddress {
+            account_name: account_name.to_string(),
+            new_address,
+        }
+        .publish(env);
+        Ok(())
+    }
+
+    /// Rename a registered account name.
+    /// Requires current owner auth, or manager auth if manager is set.
+    fn rename_account(
+        env: &Env,
+        old_name: soroban_sdk::String,
+        new_name: soroban_sdk::String,
+    ) -> Result<(), Error> {
+        let old_name: NormalizedName = old_name.try_into()?;
+        let new_name: NormalizedName = new_name.try_into()?;
+
+        let mut storage = Storage::new(env);
+        let entry = storage
+            .account
+            .get(&old_name)
+            .ok_or(Error::NoSuchAccountRegistered)?;
+
+        Contract::require_owner_or_manager(env, &entry.owner);
+
+        if storage.account.has(&new_name) {
+            return Err(Error::AccountNameAlreadyTaken);
+        }
+
+        storage.account.remove(&old_name);
+        storage.account.set(&new_name, &entry);
+        storage.account.extend_ttl_max(&new_name);
+
+        crate::events::RenameAccount {
+            old_name: old_name.to_string(),
+            new_name: new_name.to_string(),
+        }
+        .publish(env);
+        Ok(())
+    }
+
+    /// Flag account, marking it as compromised or un-marking it as being
+    /// compromised.
+    fn flag_account(
+        env: &Env,
+        account_name: soroban_sdk::String,
+        flagged: bool,
+    ) -> Result<(), Error> {
+        let account_name: NormalizedName = account_name.try_into()?;
+
+        let mut storage = Storage::new(env);
+        let entry = Contract::get_account_entry(env, &account_name)?;
+
+        Contract::require_owner_or_manager(env, &entry.owner);
+
+        storage.account.extend_ttl_max(&account_name);
+        storage.account.set(
+            &account_name,
+            &AccountEntry {
+                owner: entry.owner,
+                address: entry.address,
+                flagged,
+            },
+        );
+
+        crate::events::SecurityFlagAccount { flagged }.publish(env);
+        Ok(())
+    }
+}
