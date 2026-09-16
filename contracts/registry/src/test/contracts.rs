@@ -3,15 +3,9 @@ extern crate std;
 use soroban_sdk::{self, xdr, Address, Bytes, BytesN, Env, TryFromVal};
 use std::rc::Rc;
 
-/// Writes a classic Stellar account ledger entry directly (mirroring the
-/// approach `Env::register_stellar_asset_contract_v2` uses internally to
-/// fund its issuer account) and returns the corresponding G-address.
-///
-/// `Address::generate` (the usual testutils helper) always produces a
-/// *contract* address, never an account one — there's no public testutils
-/// helper for a funded G-address, so this constructs the ledger entry
-/// directly. `seed` just needs to be distinct per call within a test to get
-/// distinct addresses.
+/// `Address::generate` always makes a *contract* address, never an account —
+/// there's no testutils helper for a funded G-address, so this writes the
+/// ledger entry directly. `seed` just needs to be distinct per call.
 pub fn fund_account(env: &Env, seed: u8) -> Address {
     let account_id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
         [seed; 32],
