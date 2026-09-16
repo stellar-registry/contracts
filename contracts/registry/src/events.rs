@@ -68,3 +68,30 @@ pub struct RegisterAccount {
     pub account_name: String,
     pub account_id: Address,
 }
+
+#[contractevent(topics = ["update_acct_owner"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpdateAccountOwner {
+    pub account_name: String,
+    pub new_owner: Address,
+}
+
+#[contractevent(topics = ["update_acct_addr"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpdateAccountAddress {
+    pub account_name: String,
+    pub new_address: Address,
+}
+
+#[contractevent(topics = ["rename_account"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RenameAccount {
+    pub old_name: String,
+    pub new_name: String,
+}
+
+#[contractevent(topics = ["sec_flag_acct"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecurityFlagAccount {
+    pub flagged: bool,
+}
