@@ -15,6 +15,7 @@ pub mod version;
 use crate::registry::contract::Proxyable;
 pub use error::Error;
 use registry::{
+    account::AccountRegistrable,
     contract::{Batchable, Deployable, Manageable, Redeployable},
     wasm::Publishable,
 };
@@ -40,6 +41,9 @@ impl Batchable for Contract {}
 
 #[contractimpl(contracttrait)]
 impl Manageable for Contract {}
+
+#[contractimpl(contracttrait)]
+impl AccountRegistrable for Contract {}
 
 #[contractimpl(contracttrait)]
 impl Publishable for Contract {}
