@@ -61,3 +61,10 @@ pub struct SubRegistry {
     pub name: String,
     pub contract_id: Address,
 }
+
+#[contractevent(topics = ["register_account"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegisterAccount {
+    pub account_name: String,
+    pub account_id: Address,
+}
