@@ -1,6 +1,39 @@
 extern crate std;
 
-use soroban_sdk::{self, Address, Bytes, BytesN, Env};
+use soroban_sdk::{self, xdr, Address, Bytes, BytesN, Env, TryFromVal};
+use std::rc::Rc;
+
+/// `Address::generate` always makes a *contract* address, never an account —
+/// there's no testutils helper for a funded G-address, so this writes the
+/// ledger entry directly. `seed` just needs to be distinct per call.
+pub fn fund_account(env: &Env, seed: u8) -> Address {
+    let account_id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
+        [seed; 32],
+    )));
+    let key = Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
+        account_id: account_id.clone(),
+    }));
+    if env.host().get_ledger_entry(&key).unwrap().is_none() {
+        let entry = Rc::new(xdr::LedgerEntry {
+            data: xdr::LedgerEntryData::Account(xdr::AccountEntry {
+                account_id: account_id.clone(),
+                balance: 0,
+                flags: 0,
+                home_domain: xdr::String32::default(),
+                inflation_dest: None,
+                num_sub_entries: 0,
+                seq_num: xdr::SequenceNumber(0),
+                thresholds: xdr::Thresholds([1; 4]),
+                signers: xdr::VecM::default(),
+                ext: xdr::AccountEntryExt::V0,
+            }),
+            last_modified_ledger_seq: 0,
+            ext: xdr::LedgerEntryExt::V0,
+        });
+        env.host().add_ledger_entry(&key, &entry, None).unwrap();
+    }
+    Address::try_from_val(env, &xdr::ScAddress::Account(account_id)).unwrap()
+}
 
 pub mod hello_world {
     soroban_sdk::contractimport!(file = "../../target/stellar/local/hello_world.wasm");

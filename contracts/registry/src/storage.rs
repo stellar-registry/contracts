@@ -18,6 +18,7 @@ pub(crate) mod maps;
 pub struct Storage {
     pub wasm: maps::PersistentMap<NormalizedName, PublishedWasm, WasmKey>,
     pub contract: maps::PersistentMap<NormalizedName, ContractEntry, ContractKey>,
+    pub account: maps::PersistentMap<NormalizedName, AccountEntry, AccountKey>,
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
     pub root_registry: InstanceItem<Address>,
     pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
@@ -28,6 +29,7 @@ impl Storage {
         Self {
             wasm: maps::PersistentMap::new(env),
             contract: maps::PersistentMap::new(env),
+            account: maps::PersistentMap::new(env),
             hash: maps::PersistentMap::new(env),
             root_registry: InstanceItem::new_raw(env, symbol_short!("ROOT_REG").to_val()),
             preauth_transfers: TemporaryMap::new_raw(env),
@@ -115,6 +117,14 @@ pub struct WasmKey;
 impl ToStorageKey<NormalizedName> for WasmKey {
     fn to_key(env: &Env, k: &NormalizedName) -> Val {
         (symbol_short!("WA"), k.to_string()).into_val(env)
+    }
+}
+
+pub struct AccountKey;
+
+impl ToStorageKey<NormalizedName> for AccountKey {
+    fn to_key(env: &Env, k: &NormalizedName) -> Val {
+        (symbol_short!("AC"), k.to_string()).into_val(env)
     }
 }
 
@@ -238,12 +248,67 @@ impl From<ContractEntry> for (Address, Address, bool) {
     }
 }
 
+#[derive(Clone)]
+pub struct AccountEntry {
+    pub owner: Address,
+    pub address: Address,
+    pub flagged: bool,
+}
+
+// Same compact-encoding trick as `ContractEntry` — see its comment above.
+impl IntoVal<Env, Val> for AccountEntry {
+    fn into_val(&self, env: &Env) -> Val {
+        if self.flagged {
+            (self.owner.to_val(), self.address.to_val(), ()).into_val(env)
+        } else {
+            (self.owner.to_val(), self.address.to_val()).into_val(env)
+        }
+    }
+}
+
+impl TryFromVal<Env, Val> for AccountEntry {
+    type Error = soroban_sdk::Error;
+
+    fn try_from_val(env: &Env, v: &Val) -> Result<Self, soroban_sdk::Error> {
+        let vec: soroban_sdk::Vec<Val> = TryFromVal::try_from_val(env, v)?;
+        let flagged = match vec.len() {
+            2 => false,
+            3 => true,
+            _ => {
+                return Err(soroban_sdk::Error::from_type_and_code(
+                    ScErrorType::Object,
+                    ScErrorCode::UnexpectedSize,
+                ))
+            }
+        };
+        let owner = TryFromVal::try_from_val(env, &vec.get_unchecked(0))?;
+        let address = TryFromVal::try_from_val(env, &vec.get_unchecked(1))?;
+        Ok(AccountEntry {
+            owner,
+            address,
+            flagged,
+        })
+    }
+}
+
+impl From<AccountEntry> for (Address, Address, bool) {
+    fn from(
+        AccountEntry {
+            owner,
+            address,
+            flagged,
+        }: AccountEntry,
+    ) -> Self {
+        (owner, address, flagged)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate std;
     use crate::name::NormalizedName;
 
-    use super::{maps::ToStorageKey, ContractKey, HashKey, WasmKey};
+    use super::{maps::ToStorageKey, AccountKey, ContractKey, HashKey, WasmKey};
     use rand::{rngs::SmallRng, RngCore, SeedableRng};
     use soroban_sdk::{xdr::ToXdr, Env, IntoVal, String};
 
@@ -277,6 +342,11 @@ mod tests {
                 ContractKey::to_key(env, unsafe { &NormalizedName::new_unchecked(s.clone()) })
                     .to_xdr(env);
             contract_key.slice(..4).copy_into_slice(&mut key_prefix);
+            assert_eq!(vec_prefix, key_prefix);
+            let account_key =
+                AccountKey::to_key(env, unsafe { &NormalizedName::new_unchecked(s.clone()) })
+                    .to_xdr(env);
+            account_key.slice(..4).copy_into_slice(&mut key_prefix);
             assert_eq!(vec_prefix, key_prefix);
             hash = env.crypto().sha256(&hash.to_bytes().into_val(env));
         }
