@@ -1,9 +1,14 @@
 use crate::{
     error::Error,
+    events::{RenameAccount, SecurityFlagAccount, UpdateAccountAddress, UpdateAccountOwner},
     test::contracts::{fund_account, hello_world, hw_bytes, hw_hash},
     test::registry::{to_string, Registry},
 };
-use soroban_sdk::{self, testutils::Address as _, testutils::Register, Address};
+use soroban_sdk::{
+    self,
+    testutils::{Address as _, Events as _, Register},
+    Address, Env, Event,
+};
 
 fn deploy_hw(env: &soroban_sdk::Env, owner: &Address) -> Address {
     hello_world::WASM.register(env, None, hello_world::Args::__constructor(owner))
@@ -273,4 +278,344 @@ fn flag_account_as_owner_succeeds() {
     env.mock_all_auths();
     client.flag_account(&to_string(env, "my-account"), &true);
     client.flag_account(&to_string(env, "my-account"), &false);
+}
+
+// --- Event coverage -------------------------------------------------------
+//
+// The indexer does not track these events yet, so these tests are the only
+// guard on their shape. They also cover `flagged`, which has no getter.
+
+/// Assert the last invocation emitted `event` from the registry contract.
+fn assert_emitted(env: &Env, registry: &Registry, event: &impl Event) {
+    let expected = event.to_xdr(env, &registry.client().address);
+    assert!(
+        env.events().all().events().contains(&expected),
+        "expected event not emitted; got {:?}",
+        env.events().all()
+    );
+}
+
+/// Registry with a manager and one registered account owned by a distinct
+/// (non-manager) owner. Returns `(registry, owner, manager)`.
+fn setup_managed_with_account<'a>(seed: u8) -> (Registry<'a>, Address, Address) {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let owner = Address::generate(env);
+    env.mock_all_auths();
+    registry.client().register_account(
+        &to_string(env, "my-account"),
+        &fund_account(env, seed),
+        &owner,
+    );
+    let manager = registry.client().manager().unwrap();
+    assert_ne!(owner, manager);
+    (registry, owner, manager)
+}
+
+#[test]
+fn update_account_owner_emits_event_with_owner_operator() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let owner = Address::generate(env);
+    env.mock_all_auths();
+    client.register_account(
+        &to_string(env, "my-account"),
+        &fund_account(env, 20),
+        &owner,
+    );
+
+    let new_owner = Address::generate(env);
+    client.update_account_owner(&to_string(env, "my-account"), &new_owner);
+
+    assert_emitted(
+        env,
+        &registry,
+        &UpdateAccountOwner {
+            account_name: to_string(env, "my-account"),
+            new_owner,
+            operator: owner,
+        },
+    );
+}
+
+#[test]
+fn update_account_owner_by_manager_records_manager_as_operator() {
+    let (registry, owner, manager) = setup_managed_with_account(21);
+    let env = registry.env();
+    let client = registry.client();
+
+    let new_owner = Address::generate(env);
+    env.mock_all_auths();
+    client.update_account_owner(&to_string(env, "my-account"), &new_owner);
+
+    // The manager must have authorized, not the current owner.
+    let auths = env.auths();
+    assert!(auths.iter().any(|(a, _)| *a == manager));
+    assert!(auths.iter().all(|(a, _)| *a != owner));
+
+    assert_emitted(
+        env,
+        &registry,
+        &UpdateAccountOwner {
+            account_name: to_string(env, "my-account"),
+            new_owner: new_owner.clone(),
+            operator: manager,
+        },
+    );
+    assert_eq!(
+        client.fetch_account_owner(&to_string(env, "my-account")),
+        new_owner
+    );
+}
+
+#[test]
+fn update_account_owner_preserves_address() {
+    let (registry, addr) = setup_with_registered_account(22);
+    let env = registry.env();
+    let client = registry.client();
+
+    env.mock_all_auths();
+    client.update_account_owner(&to_string(env, "my-account"), &Address::generate(env));
+
+    assert_eq!(client.fetch_account_id(&to_string(env, "my-account")), addr);
+}
+
+#[test]
+fn update_account_address_emits_event_and_preserves_owner() {
+    let (registry, _addr) = setup_with_registered_account(23);
+    let env = registry.env();
+    let client = registry.client();
+    let owner = registry.admin().clone();
+    // Root-style registry: manager is set, so it is the operator. Read it
+    // before the call under test, since any invocation resets the event buffer.
+    let operator = client.manager().unwrap_or(owner.clone());
+
+    let new_address = fund_account(env, 24);
+    env.mock_all_auths();
+    client.update_account_address(&to_string(env, "my-account"), &new_address);
+
+    assert_emitted(
+        env,
+        &registry,
+        &UpdateAccountAddress {
+            account_name: to_string(env, "my-account"),
+            new_address,
+            operator,
+        },
+    );
+    assert_eq!(
+        client.fetch_account_owner(&to_string(env, "my-account")),
+        owner
+    );
+}
+
+#[test]
+fn update_account_address_by_manager_records_manager_as_operator() {
+    let (registry, _owner, manager) = setup_managed_with_account(25);
+    let env = registry.env();
+    let client = registry.client();
+
+    let new_address = fund_account(env, 26);
+    env.mock_all_auths();
+    client.update_account_address(&to_string(env, "my-account"), &new_address);
+
+    assert_emitted(
+        env,
+        &registry,
+        &UpdateAccountAddress {
+            account_name: to_string(env, "my-account"),
+            new_address,
+            operator: manager,
+        },
+    );
+}
+
+#[test]
+fn update_account_address_to_unfunded_account_fails() {
+    let (registry, _addr) = setup_with_registered_account(27);
+    let env = registry.env();
+    let client = registry.client();
+
+    env.mock_all_auths();
+    // A fresh G-address that does not exist on the ledger.
+    assert_eq!(
+        client
+            .try_update_account_address(&to_string(env, "my-account"), &Address::generate(env))
+            .unwrap_err(),
+        Ok(Error::ContractIdAddressDoesNotExist)
+    );
+}
+
+#[test]
+fn rename_account_emits_event_and_preserves_owner() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let owner = Address::generate(env);
+    env.mock_all_auths();
+    client.register_account(
+        &to_string(env, "my-account"),
+        &fund_account(env, 28),
+        &owner,
+    );
+
+    client.rename_account(&to_string(env, "my-account"), &to_string(env, "new-name"));
+
+    assert_emitted(
+        env,
+        &registry,
+        &RenameAccount {
+            old_name: to_string(env, "my-account"),
+            new_name: to_string(env, "new-name"),
+            operator: owner.clone(),
+        },
+    );
+    assert_eq!(
+        client.fetch_account_owner(&to_string(env, "new-name")),
+        owner
+    );
+}
+
+#[test]
+fn rename_account_by_manager_records_manager_as_operator() {
+    let (registry, _owner, manager) = setup_managed_with_account(29);
+    let env = registry.env();
+    let client = registry.client();
+
+    env.mock_all_auths();
+    client.rename_account(&to_string(env, "my-account"), &to_string(env, "new-name"));
+
+    assert_emitted(
+        env,
+        &registry,
+        &RenameAccount {
+            old_name: to_string(env, "my-account"),
+            new_name: to_string(env, "new-name"),
+            operator: manager,
+        },
+    );
+}
+
+#[test]
+fn rename_account_normalizes_names_in_event() {
+    let (registry, _addr) = setup_with_registered_account(30);
+    let env = registry.env();
+    let client = registry.client();
+
+    let expected_operator = client.manager().unwrap_or(registry.admin().clone());
+    env.mock_all_auths();
+    client.rename_account(&to_string(env, "My-Account"), &to_string(env, "New-Name"));
+
+    // Event carries the normalized (stored) names, which is what the indexer
+    // will need to key on.
+    assert_emitted(
+        env,
+        &registry,
+        &RenameAccount {
+            old_name: to_string(env, "my-account"),
+            new_name: to_string(env, "new-name"),
+            operator: expected_operator,
+        },
+    );
+}
+
+#[test]
+fn flag_account_emits_event_with_account_and_operator() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let owner = Address::generate(env);
+    env.mock_all_auths();
+    client.register_account(
+        &to_string(env, "my-account"),
+        &fund_account(env, 31),
+        &owner,
+    );
+
+    for flagged in [true, false] {
+        client.flag_account(&to_string(env, "my-account"), &flagged);
+        assert_emitted(
+            env,
+            &registry,
+            &SecurityFlagAccount {
+                account_name: to_string(env, "my-account"),
+                flagged,
+                operator: owner.clone(),
+            },
+        );
+    }
+}
+
+#[test]
+fn flag_account_by_manager_records_manager_as_operator() {
+    let (registry, owner, manager) = setup_managed_with_account(32);
+    let env = registry.env();
+    let client = registry.client();
+
+    env.mock_all_auths();
+    client.flag_account(&to_string(env, "my-account"), &true);
+
+    let auths = env.auths();
+    assert!(auths.iter().any(|(a, _)| *a == manager));
+    assert!(auths.iter().all(|(a, _)| *a != owner));
+
+    assert_emitted(
+        env,
+        &registry,
+        &SecurityFlagAccount {
+            account_name: to_string(env, "my-account"),
+            flagged: true,
+            operator: manager,
+        },
+    );
+}
+
+#[test]
+fn flag_nonexistent_account_fails() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+
+    env.mock_all_auths();
+    assert_eq!(
+        registry
+            .client()
+            .try_flag_account(&to_string(env, "nonexistent"), &true)
+            .unwrap_err(),
+        Ok(Error::NoSuchAccountRegistered)
+    );
+}
+
+#[test]
+fn flag_account_by_non_owner_without_manager_fails() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let owner = Address::generate(env);
+    env.mock_all_auths();
+    client.register_account(
+        &to_string(env, "my-account"),
+        &fund_account(env, 33),
+        &owner,
+    );
+
+    registry.mock_auth_for(
+        &Address::generate(env),
+        "flag_account",
+        (&to_string(env, "my-account"), &true),
+    );
+    assert!(client
+        .try_flag_account(&to_string(env, "my-account"), &true)
+        .is_err());
+}
+
+#[test]
+fn failed_management_calls_emit_no_event() {
+    let (registry, _addr) = setup_with_registered_account(34);
+    let env = registry.env();
+    let client = registry.client();
+
+    env.mock_all_auths();
+    let _ = client.try_rename_account(&to_string(env, "nonexistent"), &to_string(env, "x"));
+    assert!(env.events().all().events().is_empty());
 }
