@@ -280,12 +280,7 @@ fn flag_account_as_owner_succeeds() {
     client.flag_account(&to_string(env, "my-account"), &false);
 }
 
-// --- Event coverage -------------------------------------------------------
-//
-// The indexer does not track these events yet, so these tests are the only
-// guard on their shape. They also cover `flagged`, which has no getter.
-
-/// Assert the last invocation emitted `event` from the registry contract.
+/// Assert the last invocation emitted `event`.
 fn assert_emitted(env: &Env, registry: &Registry, event: &impl Event) {
     let expected = event.to_xdr(env, &registry.client().address);
     assert!(
@@ -295,8 +290,7 @@ fn assert_emitted(env: &Env, registry: &Registry, event: &impl Event) {
     );
 }
 
-/// Registry with a manager and one registered account owned by a distinct
-/// (non-manager) owner. Returns `(registry, owner, manager)`.
+/// Managed registry with "my-account" owned by someone other than the manager.
 fn setup_managed_with_account<'a>(seed: u8) -> (Registry<'a>, Address, Address) {
     let registry = Registry::new_non_root_managed();
     let env = registry.env();
@@ -349,7 +343,6 @@ fn update_account_owner_by_manager_records_manager_as_operator() {
     env.mock_all_auths();
     client.update_account_owner(&to_string(env, "my-account"), &new_owner);
 
-    // The manager must have authorized, not the current owner.
     let auths = env.auths();
     assert!(auths.iter().any(|(a, _)| *a == manager));
     assert!(auths.iter().all(|(a, _)| *a != owner));
@@ -387,8 +380,7 @@ fn update_account_address_emits_event_and_preserves_owner() {
     let env = registry.env();
     let client = registry.client();
     let owner = registry.admin().clone();
-    // Root-style registry: manager is set, so it is the operator. Read it
-    // before the call under test, since any invocation resets the event buffer.
+    // Read before the call under test: any invocation resets the event buffer.
     let operator = client.manager().unwrap_or(owner.clone());
 
     let new_address = fund_account(env, 24);
@@ -438,7 +430,7 @@ fn update_account_address_to_unfunded_account_fails() {
     let client = registry.client();
 
     env.mock_all_auths();
-    // A fresh G-address that does not exist on the ledger.
+    // Not funded on the ledger.
     assert_eq!(
         client
             .try_update_account_address(&to_string(env, "my-account"), &Address::generate(env))
@@ -507,8 +499,6 @@ fn rename_account_normalizes_names_in_event() {
     env.mock_all_auths();
     client.rename_account(&to_string(env, "My-Account"), &to_string(env, "New-Name"));
 
-    // Event carries the normalized (stored) names, which is what the indexer
-    // will need to key on.
     assert_emitted(
         env,
         &registry,
