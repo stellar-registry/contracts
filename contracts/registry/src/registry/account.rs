@@ -123,7 +123,7 @@ pub trait AccountManageable {
             .get(&account_name)
             .ok_or(Error::NoSuchAccountRegistered)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
         storage.account.extend_ttl_max(&account_name);
         storage.account.set(
@@ -137,6 +137,7 @@ pub trait AccountManageable {
         crate::events::UpdateAccountOwner {
             account_name: account_name.to_string(),
             new_owner,
+            operator,
         }
         .publish(env);
         Ok(())
@@ -156,7 +157,7 @@ pub trait AccountManageable {
             .get(&account_name)
             .ok_or(Error::NoSuchAccountRegistered)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
         match new_address.executable() {
             Some(Executable::Account) => {}
@@ -176,6 +177,7 @@ pub trait AccountManageable {
         crate::events::UpdateAccountAddress {
             account_name: account_name.to_string(),
             new_address,
+            operator,
         }
         .publish(env);
         Ok(())
@@ -197,7 +199,7 @@ pub trait AccountManageable {
             .get(&old_name)
             .ok_or(Error::NoSuchAccountRegistered)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
         if storage.account.has(&new_name) {
             return Err(Error::AccountNameAlreadyTaken);
@@ -210,6 +212,7 @@ pub trait AccountManageable {
         crate::events::RenameAccount {
             old_name: old_name.to_string(),
             new_name: new_name.to_string(),
+            operator,
         }
         .publish(env);
         Ok(())
@@ -227,7 +230,7 @@ pub trait AccountManageable {
         let mut storage = Storage::new(env);
         let entry = Contract::get_account_entry(env, &account_name)?;
 
-        Contract::require_owner_or_manager(env, &entry.owner);
+        let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
         storage.account.extend_ttl_max(&account_name);
         storage.account.set(
@@ -239,7 +242,12 @@ pub trait AccountManageable {
             },
         );
 
-        crate::events::SecurityFlagAccount { flagged }.publish(env);
+        crate::events::SecurityFlagAccount {
+            account_name: account_name.to_string(),
+            flagged,
+            operator,
+        }
+        .publish(env);
         Ok(())
     }
 }

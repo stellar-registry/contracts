@@ -74,6 +74,7 @@ pub struct RegisterAccount {
 pub struct UpdateAccountOwner {
     pub account_name: String,
     pub new_owner: Address,
+    pub operator: Address,
 }
 
 #[contractevent(topics = ["update_acct_addr"])]
@@ -81,6 +82,7 @@ pub struct UpdateAccountOwner {
 pub struct UpdateAccountAddress {
     pub account_name: String,
     pub new_address: Address,
+    pub operator: Address,
 }
 
 #[contractevent(topics = ["rename_account"])]
@@ -88,10 +90,13 @@ pub struct UpdateAccountAddress {
 pub struct RenameAccount {
     pub old_name: String,
     pub new_name: String,
+    pub operator: Address,
 }
 
 #[contractevent(topics = ["sec_flag_acct"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SecurityFlagAccount {
+    pub account_name: String,
     pub flagged: bool,
+    pub operator: Address,
 }
