@@ -89,12 +89,12 @@ impl Contract {
         Ok(contract_id)
     }
 
-    pub(crate) fn require_owner_or_manager(env: &Env, owner: &Address) {
-        if let Some(manager) = Storage::manager(env) {
-            manager.require_auth();
-        } else {
-            owner.require_auth();
-        }
+    /// Require auth from the manager if set, otherwise from `owner`.
+    /// Returns the address that authorized the call.
+    pub(crate) fn require_owner_or_manager(env: &Env, owner: &Address) -> Address {
+        let operator = Storage::manager(env).unwrap_or_else(|| owner.clone());
+        operator.require_auth();
+        operator
     }
 
     pub(crate) fn register_contract_name(
