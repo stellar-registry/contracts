@@ -45,4 +45,10 @@ pub enum Error {
     SubRegistryCrossContractCallFailed,
     /// Subregistry must be a different contract than the current registry
     SubRegistryIsSelf,
+    /// Account name already claimed
+    AccountNameAlreadyTaken,
+    /// No such account registered
+    NoSuchAccountRegistered,
+    /// Given address is a contract, not a G-address account
+    NotAccountAddress,
 }
