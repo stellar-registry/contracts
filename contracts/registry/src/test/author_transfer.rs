@@ -1,6 +1,7 @@
 use crate::test::contracts::{hw_bytes, hw_bytes_v2, hw_bytes_v3, hw_hash_v2};
 use crate::{
     error::Error,
+    name::NormalizedName,
     test::registry::{to_string, Registry},
 };
 use soroban_sdk::{self, testutils::Address as _, Address, String};
@@ -38,6 +39,12 @@ fn preauthorized_author_can_publish_next_version() {
     // Alice pre-authorizes Bob.
     registry.mock_auths_for(&[alice], "preauthorize_author_transfer", (name, bob));
     client.preauthorize_author_transfer(name, bob);
+
+    // Temporary entry is keyed by the bare name; pins the storage layout.
+    let key: NormalizedName = name.try_into().unwrap();
+    let stored: Option<Address> =
+        env.as_contract(&client.address, || env.storage().temporary().get(&key));
+    assert_eq!(stored.as_ref(), Some(bob));
 
     // Bob publishes the next version signing only for himself — succeeds.
     registry.mock_auth_with_addresses_for_publish(

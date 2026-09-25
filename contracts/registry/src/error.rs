@@ -1,54 +1,57 @@
-#[soroban_sdk_tools::scerr]
+#[soroban_sdk::contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum Error {
-    NoSuchWasmPublished,
+    /// No wasm has been published under this name
+    NoSuchWasmPublished = 1,
     /// No such version of the contact has been published
-    NoSuchVersion,
+    NoSuchVersion = 2,
     /// Wasm name already claimed
-    WasmNameAlreadyTaken,
+    WasmNameAlreadyTaken = 3,
     /// No such contract deployed
-    NoSuchContractDeployed,
+    NoSuchContractDeployed = 4,
     /// Contract already deployed
-    AlreadyDeployed,
+    AlreadyDeployed = 5,
     /// Failed to upgrade a contract
-    UpgradeInvokeFailed,
+    UpgradeInvokeFailed = 6,
     /// Only Admin is allowed
-    AdminOnly,
+    AdminOnly = 7,
     /// New version must be greater than the most recent version
-    VersionMustBeGreaterThanCurrent,
+    VersionMustBeGreaterThanCurrent = 8,
     /// Invalid name.
     /// Must be at most 64 characters and non-empty;
     /// ascii alphanumeric, '-', or '_';
     /// start with a ascii alphabetic character;
     /// and not be a Rust keyword
-    InvalidName,
+    InvalidName = 9,
     /// Must be valid cargo version
-    InvalidVersion,
+    InvalidVersion = 10,
     /// Hash has aleady been published
-    HashAlreadyPublished,
+    HashAlreadyPublished = 11,
     /// Root registry requires manager when deploying
-    ManagerRequired,
+    ManagerRequired = 12,
     /// No pending batch entries to process
-    NoPendingBatch,
+    NoPendingBatch = 13,
     /// Caller is not the contract owner
-    NotContractOwner,
+    NotContractOwner = 14,
     /// Batch entry missing from temporary storage (likely expired)
-    BatchEntryExpired,
+    BatchEntryExpired = 15,
     /// Given "contract ID" appears to be a G-address, not a contract ID
-    AccountAddressNotValid,
+    AccountAddressNotValid = 16,
     /// Given contract ID does not exist on this network
-    ContractIdAddressDoesNotExist,
+    ContractIdAddressDoesNotExist = 17,
     /// Invoking contract's function has failed
-    ProxyInvocationFailed,
+    ProxyInvocationFailed = 18,
     /// Contract to be invoked is compromised
-    ProxyContractCompromised,
+    ProxyContractCompromised = 19,
     /// Subregistry contract call failed
-    SubRegistryCrossContractCallFailed,
+    SubRegistryCrossContractCallFailed = 20,
     /// Subregistry must be a different contract than the current registry
-    SubRegistryIsSelf,
+    SubRegistryIsSelf = 21,
     /// Account name already claimed
-    AccountNameAlreadyTaken,
+    AccountNameAlreadyTaken = 22,
     /// No such account registered
-    NoSuchAccountRegistered,
+    NoSuchAccountRegistered = 23,
     /// Given address is a contract, not a G-address account
-    NotAccountAddress,
+    NotAccountAddress = 24,
 }

@@ -4,7 +4,6 @@ use soroban_sdk::{
     xdr::{ScErrorCode, ScErrorType},
     Address, BytesN, Env, IntoVal, TryFromVal, Val,
 };
-use soroban_sdk_tools::{InstanceItem, TemporaryMap};
 
 use crate::{
     name::NormalizedName,
@@ -20,8 +19,6 @@ pub struct Storage {
     pub contract: maps::PersistentMap<NormalizedName, ContractEntry, ContractKey>,
     pub account: maps::PersistentMap<NormalizedName, AccountEntry, AccountKey>,
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
-    pub root_registry: InstanceItem<Address>,
-    pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
 }
 
 impl Storage {
@@ -31,8 +28,6 @@ impl Storage {
             contract: maps::PersistentMap::new(env),
             account: maps::PersistentMap::new(env),
             hash: maps::PersistentMap::new(env),
-            root_registry: InstanceItem::new_raw(env, symbol_short!("ROOT_REG").to_val()),
-            preauth_transfers: TemporaryMap::new_raw(env),
         }
     }
 }
@@ -42,6 +37,14 @@ pub struct Manager;
 impl ToStorageKey<()> for Manager {
     fn to_key(_: &Env, (): &()) -> Val {
         symbol_short!("MANAGER").to_val()
+    }
+}
+
+pub struct RootRegistry;
+
+impl ToStorageKey<()> for RootRegistry {
+    fn to_key(_: &Env, (): &()) -> Val {
+        symbol_short!("ROOT_REG").to_val()
     }
 }
 
@@ -64,6 +67,19 @@ impl Storage {
         env.storage().instance().remove(&Manager::to_key(env, &()));
     }
 
+    pub fn set_root_registry(env: &Env, root: &Address) {
+        env.storage()
+            .instance()
+            .set(&RootRegistry::to_key(env, &()), root);
+    }
+
+    /// Temporary entry keyed by the bare name.
+    pub fn set_preauth_transfer(env: &Env, wasm_name: &NormalizedName, new_author: &Address) {
+        let temporary = env.storage().temporary();
+        temporary.set(wasm_name, new_author);
+        temporary.extend_ttl(wasm_name, MAX_BUMP, MAX_BUMP);
+    }
+
     /// Resolves a subregistry name to its contract address via the trusted
     /// root. Subregistries pin the root's address at construction, so callers
     /// can't smuggle a forged address through `deploy_with_subregistry`. On
@@ -73,9 +89,12 @@ impl Storage {
         env: &Env,
         subregistry: &soroban_sdk::String,
     ) -> Result<Address, Error> {
-        let root = Storage::new(env).root_registry;
-        if let Some(root_id) = root.get() {
-            root.extend_ttl(MAX_BUMP, MAX_BUMP);
+        let root: Option<Address> = env
+            .storage()
+            .instance()
+            .get(&RootRegistry::to_key(env, &()));
+        if let Some(root_id) = root {
+            env.storage().instance().extend_ttl(MAX_BUMP, MAX_BUMP);
             let client = DeployableClient::new(env, &root_id);
             match client.try_fetch_contract_id(subregistry) {
                 Ok(Ok(addr)) => Ok(addr),
@@ -96,7 +115,12 @@ impl Storage {
         wasm_name: &NormalizedName,
         new_author: &Address,
     ) -> bool {
-        if let Some(approved_author) = Storage::new(env).preauth_transfers.get(wasm_name).as_ref() {
+        if let Some(approved_author) = env
+            .storage()
+            .temporary()
+            .get::<_, Address>(wasm_name)
+            .as_ref()
+        {
             approved_author == new_author
         } else {
             false
@@ -310,7 +334,25 @@ mod tests {
 
     use super::{maps::ToStorageKey, AccountKey, ContractKey, HashKey, WasmKey};
     use rand::{rngs::SmallRng, RngCore, SeedableRng};
-    use soroban_sdk::{xdr::ToXdr, Env, IntoVal, String};
+    use soroban_sdk::{
+        symbol_short, testutils::Address as _, xdr::ToXdr, Address, Env, IntoVal, String,
+    };
+
+    /// Pins the raw key so existing subregistries stay readable across refactors.
+    #[test]
+    fn root_registry_key_is_stable() {
+        let env = &Env::default();
+        let admin = Address::generate(env);
+        let root = Address::generate(env);
+        let id = env.register(
+            crate::Contract,
+            (admin, None::<Address>, Some(root.clone())),
+        );
+        let stored: Option<Address> = env.as_contract(&id, || {
+            env.storage().instance().get(&symbol_short!("ROOT_REG"))
+        });
+        assert_eq!(stored, Some(root));
+    }
 
     #[test]
     fn hash_key_prefix_is_unique() {

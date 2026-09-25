@@ -9,7 +9,7 @@ use crate::{RegistryTansuManager, RegistryTansuManagerClient};
 // Wasm-import the standalone tansu-stub so we can register it as the Tansu
 // the manager queries during `__check_auth`.
 mod tansu_stub_wasm {
-    soroban_sdk_tools::contractimport!(file = "../../target/stellar/local/tansu_stub.wasm");
+    soroban_sdk::contractimport!(file = "../../target/stellar/local/tansu_stub.wasm");
 }
 
 #[test]
@@ -26,4 +26,13 @@ fn constructor_stores_values() {
     assert_eq!(client.tansu(), tansu);
     assert_eq!(client.project_key(), project_key);
     assert_eq!(client.registry(), registry);
+
+    // Pins the raw instance keys so deployed managers stay readable across refactors.
+    env.as_contract(&manager, || {
+        let storage = env.storage().instance();
+        let key = |k: &[u8]| Bytes::from_slice(&env, k);
+        assert_eq!(storage.get::<_, Address>(&key(b"T")), Some(tansu));
+        assert_eq!(storage.get::<_, Bytes>(&key(b"P")), Some(project_key));
+        assert_eq!(storage.get::<_, Address>(&key(b"R")), Some(registry));
+    });
 }

@@ -7,17 +7,18 @@
 use soroban_sdk::{
     self,
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    contract, contractimpl, vec, Address, Bytes, Env, IntoVal, Symbol, Val, Vec,
+    contract, contractimpl, vec, Address, Bytes, Env, IntoVal, Symbol, TryFromVal, Val, Vec,
 };
-use soroban_sdk_tools::{contractstorage, InstanceItem};
 
-#[soroban_sdk_tools::scerr]
+#[soroban_sdk::contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum Error {
     /// Proposal has no outcomes attached.
-    NoOutcomeContracts,
+    NoOutcomeContracts = 1,
     /// Proposal has more than one outcome — this manager authorizes exactly
     /// one sub-call per proposal.
-    MultipleOutcomes,
+    MultipleOutcomes = 2,
 }
 
 // Proposal/status types are derived from the tansu-stub contract's wasm spec.
@@ -26,17 +27,55 @@ pub enum Error {
 // correctly.
 stellar_registry::import_contract_client!(tansu_stub);
 
-#[contractstorage(auto_shorten = true)]
-pub struct Storage {
+/// Instance keys are the single-byte `Bytes` that `soroban-sdk-tools`'
+/// `#[contractstorage(auto_shorten)]` assigned; changing them would orphan
+/// deployed managers' config.
+struct Storage;
+
+impl Storage {
     /// Tansu DAO contract whose proposals this manager drives.
-    tansu: InstanceItem<Address>,
+    const TANSU: &'static [u8] = b"T";
     /// Tansu workspace key this manager represents. All Tansu lookups are
     /// keyed by this — a wrong-project caller can't piggyback.
-    project_key: InstanceItem<Bytes>,
+    const PROJECT_KEY: &'static [u8] = b"P";
     /// Registry this manager is the manager of. Recorded for inspection;
     /// `trigger` doesn't read it directly because it uses whatever outcome
     /// the (project_key-gated) proposal carries.
-    registry: InstanceItem<Address>,
+    const REGISTRY: &'static [u8] = b"R";
+
+    fn get<V: TryFromVal<Env, Val>>(env: &Env, key: &[u8]) -> Option<V> {
+        env.storage().instance().get(&Bytes::from_slice(env, key))
+    }
+
+    fn set<V: IntoVal<Env, Val>>(env: &Env, key: &[u8], val: &V) {
+        env.storage()
+            .instance()
+            .set(&Bytes::from_slice(env, key), val);
+    }
+
+    fn get_tansu(env: &Env) -> Option<Address> {
+        Self::get(env, Self::TANSU)
+    }
+
+    fn set_tansu(env: &Env, tansu: &Address) {
+        Self::set(env, Self::TANSU, tansu);
+    }
+
+    fn get_project_key(env: &Env) -> Option<Bytes> {
+        Self::get(env, Self::PROJECT_KEY)
+    }
+
+    fn set_project_key(env: &Env, project_key: &Bytes) {
+        Self::set(env, Self::PROJECT_KEY, project_key);
+    }
+
+    fn get_registry(env: &Env) -> Option<Address> {
+        Self::get(env, Self::REGISTRY)
+    }
+
+    fn set_registry(env: &Env, registry: &Address) {
+        Self::set(env, Self::REGISTRY, registry);
+    }
 }
 
 #[contract]
