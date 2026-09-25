@@ -13,9 +13,10 @@ repository = "https://github.com/stellar-registry/contracts"
 # Cross-repo dev-dep from stellar-registry/cli
 stellar-registry = "0.1.1"
 
-soroban-sdk = "27.0.6"
-admin-sep = "0.27.0"
-stellar-xdr = "=27.0.0"
+soroban-sdk = "28.0.0"
+# TODO: switch to crates.io admin-sep 0.28.0 once theahaco/admin-sep#21 is released
+admin-sep = { git = "https://github.com/theahaco/admin-sep", rev = "bda8651" }
+stellar-xdr = "=28.0.0"
 
 [profile.release]
 opt-level = "z"

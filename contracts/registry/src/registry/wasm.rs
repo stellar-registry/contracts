@@ -4,7 +4,7 @@ use soroban_sdk::{self, contracttrait, contracttype, Address, BytesN, Env, Map, 
 
 use crate::{error::Error, Contract};
 
-#[contracttype(export = false)]
+#[contracttype]
 #[derive(Clone)]
 pub struct PublishedWasm {
     pub versions: Map<String, BytesN<32>>,
