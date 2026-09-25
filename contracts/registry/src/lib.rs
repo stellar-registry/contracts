@@ -66,7 +66,7 @@ impl Contract {
         manager: Option<Address>,
         root: Option<Address>,
     ) -> Result<(), Error> {
-        Self::set_admin(env, admin);
+        Self::set_admin(env, admin.clone());
         if let Some(manager) = &manager {
             Storage::set_manager_no_auth(env, manager);
         }
