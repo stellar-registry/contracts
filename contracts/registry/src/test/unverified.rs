@@ -401,7 +401,10 @@ fn hello_world_register_with_publish() {
     let contract_id = env
         .deployer()
         .with_address(author.clone(), wasm_hash.clone())
-        .deploy_v2(wasm_hash, (author.clone(),));
+        .deploy_contract(
+            soroban_sdk::ContractExecutable::Wasm(wasm_hash),
+            (author.clone(),),
+        );
     registry.mock_auths_for(
         &[author],
         "register_contract",
