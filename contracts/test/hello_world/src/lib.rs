@@ -14,7 +14,7 @@ impl Upgradable for Contract {}
 #[contractimpl]
 impl Contract {
     pub fn __constructor(env: &Env, admin: &Address) {
-        Self::set_admin(env, admin.clone());
+        Self::set_admin(env, admin);
     }
     pub fn hello(_: &Env, to: String) -> String {
         to

@@ -17,7 +17,8 @@ impl Contract {
     pub fn custom_upgrade(env: &Env, new_wasm_hash: soroban_sdk::BytesN<32>) {
         let _admin: Address = unsafe { admin_from_storage(env).unwrap_unchecked() };
         // admin.require_auth();
-        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        env.deployer()
+            .update_current_contract(soroban_sdk::ContractExecutable::Wasm(new_wasm_hash));
     }
 }
 

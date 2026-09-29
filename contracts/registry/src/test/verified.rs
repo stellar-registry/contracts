@@ -475,7 +475,10 @@ fn hello_world_register_with_publish() {
     let contract_id = env
         .deployer()
         .with_address(author.clone(), wasm_hash.clone())
-        .deploy_v2(wasm_hash, (author.clone(),));
+        .deploy_contract(
+            soroban_sdk::ContractExecutable::Wasm(wasm_hash),
+            (author.clone(),),
+        );
     env.set_auths(&[]);
     registry.mock_auths_for(
         &[author],
@@ -932,7 +935,10 @@ fn deploy_with_subregistry_non_registry_target_errors() {
     let not_a_registry = env
         .deployer()
         .with_address(author.clone(), hw_hash(env))
-        .deploy_v2(hw_hash(env), (author.clone(),));
+        .deploy_contract(
+            soroban_sdk::ContractExecutable::Wasm(hw_hash(env)),
+            (author.clone(),),
+        );
 
     // Register the non-registry contract under a name on root so the lookup
     // succeeds but the subsequent xcc to `xcc_hash_and_version` blows up.
