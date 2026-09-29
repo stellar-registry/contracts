@@ -1,4 +1,7 @@
-use crate::{name::NormalizedName, storage::Storage};
+use crate::{
+    name::NormalizedName,
+    storage::{maps::MAX_BUMP, Storage},
+};
 
 use soroban_sdk::{self, contracttrait, contracttype, Address, BytesN, Env, Map, String};
 
@@ -227,7 +230,9 @@ pub trait Publishable {
             return Err(Error::NoSuchWasmPublished);
         };
         author.require_auth();
-        Storage::set_preauth_transfer(env, &wasm_name, new_author);
+        let transfers = Storage::new(env).preauth_transfers;
+        transfers.set(&wasm_name, new_author);
+        transfers.extend_ttl(&wasm_name, MAX_BUMP, MAX_BUMP);
         Ok(())
     }
 }

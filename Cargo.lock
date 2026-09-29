@@ -4,8 +4,9 @@ version = 3
 
 [[package]]
 name = "admin-sep"
-version = "0.28.0"
-source = "git+https://github.com/theahaco/admin-sep?rev=bda8651#bda8651d3d413766b68ae7e21715dfe0ca976254"
+version = "0.28.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0964ae3e1b37e70d3839ad3fb2f17b1f2287bdac3c188a3434985a7d0d37bf7"
 dependencies = [
  "soroban-sdk",
 ]
@@ -451,6 +452,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
+dependencies = [
+ "darling_core 0.23.0",
+ "darling_macro 0.23.0",
+]
+
+[[package]]
 name = "darling_core"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -471,6 +482,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4"
 dependencies = [
  "fnv",
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
+dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
@@ -501,6 +525,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling_macro"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
+dependencies = [
+ "darling_core 0.23.0",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -513,6 +548,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
 dependencies = [
  "const-oid",
+ "pem-rfc7468",
  "zeroize",
 ]
 
@@ -587,6 +623,7 @@ dependencies = [
  "elliptic-curve",
  "rfc6979",
  "signature",
+ "spki",
 ]
 
 [[package]]
@@ -644,6 +681,8 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "pem-rfc7468",
+ "pkcs8",
  "rand_core 0.6.4",
  "sec1",
  "subtle",
@@ -950,7 +989,9 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
+ "once_cell",
  "sha2",
+ "signature",
 ]
 
 [[package]]
@@ -1065,6 +1106,15 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pem-rfc7468"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
+dependencies = [
+ "base64ct",
+]
 
 [[package]]
 name = "pkcs8"
@@ -1212,6 +1262,7 @@ dependencies = [
  "rand 0.9.5",
  "semver",
  "soroban-sdk",
+ "soroban-sdk-tools",
  "stellar-registry",
  "stellar-xdr 28.0.0",
 ]
@@ -1221,6 +1272,7 @@ name = "registry-tansu-manager"
 version = "0.1.1"
 dependencies = [
  "soroban-sdk",
+ "soroban-sdk-tools",
  "stellar-registry",
  "tansu-stub",
 ]
@@ -1294,6 +1346,7 @@ dependencies = [
  "base16ct",
  "der",
  "generic-array",
+ "pkcs8",
  "subtle",
  "zeroize",
 ]
@@ -1571,6 +1624,37 @@ dependencies = [
  "quote",
  "sha2",
  "soroban-env-common",
+ "soroban-spec",
+ "soroban-spec-rust",
+ "stellar-xdr 28.0.0",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "soroban-sdk-tools"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ac9ff2d918e0ca97ee7b29f887192afe157c95ecb0a4db94f6811ae8de682fe"
+dependencies = [
+ "ed25519-dalek",
+ "k256",
+ "p256",
+ "rand 0.8.5",
+ "soroban-sdk",
+ "soroban-sdk-tools-macro",
+]
+
+[[package]]
+name = "soroban-sdk-tools-macro"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e6eec3e76c11bc69ebc77d31f7081b90d821a2591fe64f831ee42f88e6106a"
+dependencies = [
+ "darling 0.23.0",
+ "heck",
+ "proc-macro2",
+ "quote",
+ "sha2",
  "soroban-spec",
  "soroban-spec-rust",
  "stellar-xdr 28.0.0",

@@ -66,12 +66,12 @@ impl Contract {
         manager: Option<Address>,
         root: Option<Address>,
     ) -> Result<(), Error> {
-        Self::set_admin(env, admin.clone());
+        Self::set_admin(env, admin);
         if let Some(manager) = &manager {
             Storage::set_manager_no_auth(env, manager);
         }
         if let Some(root_address) = &root {
-            Storage::set_root_registry(env, root_address);
+            Storage::new(env).root_registry.set(root_address);
         } else {
             assert_with_error!(env, manager.is_some(), Error::ManagerRequired);
             Self::deploy_unverified_and_claim_registry(env, admin)?;
