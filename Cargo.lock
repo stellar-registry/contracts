@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "registry"
-version = "0.6.4"
+version = "0.6.5"
 dependencies = [
  "admin-sep",
  "assert_matches",

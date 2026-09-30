@@ -1,7 +1,4 @@
-use crate::{
-    name::NormalizedName,
-    storage::{maps::MAX_BUMP, Storage},
-};
+use crate::{name::NormalizedName, storage::Storage};
 
 use soroban_sdk::{self, contracttrait, contracttype, Address, BytesN, Env, Map, String};
 
@@ -232,7 +229,10 @@ pub trait Publishable {
         author.require_auth();
         let transfers = Storage::new(env).preauth_transfers;
         transfers.set(&wasm_name, new_author);
-        transfers.extend_ttl(&wasm_name, MAX_BUMP, MAX_BUMP);
+        // Temporary entries cannot outlive the network's max_entry_ttl; unlike
+        // persistent entries the host traps instead of clamping.
+        let max_ttl = env.storage().max_ttl();
+        transfers.extend_ttl(&wasm_name, max_ttl, max_ttl);
         Ok(())
     }
 }
