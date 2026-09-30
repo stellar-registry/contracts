@@ -9,6 +9,7 @@ use crate::storage::ContractEntry;
 use crate::storage::Storage;
 
 use soroban_sdk::contracttrait;
+use soroban_sdk::ContractExecutable;
 use soroban_sdk::Executable;
 use soroban_sdk::Val;
 use soroban_sdk::Vec;
@@ -231,9 +232,9 @@ pub(crate) fn deploy_and_init(
 ) -> Address {
     let deployer = env.deployer().with_address(deployer, salt);
     if let Some(args) = args {
-        deployer.deploy_v2(wasm_hash, args)
+        deployer.deploy_contract(ContractExecutable::Wasm(wasm_hash), args)
     } else {
-        deployer.deploy_v2(wasm_hash, ())
+        deployer.deploy_contract(ContractExecutable::Wasm(wasm_hash), ())
     }
 }
 
