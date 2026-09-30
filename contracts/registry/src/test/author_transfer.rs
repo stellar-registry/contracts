@@ -348,3 +348,29 @@ fn reauthorization_overwrites_previous_target() {
         "the most recently pre-authorized address must be able to take over"
     );
 }
+
+/// Real networks (testnet and mainnet) cap `max_entry_ttl` at `3_110_400`
+/// ledgers, well below the testutils default. Extending a temporary entry past
+/// that traps instead of clamping, so preauthorization must still succeed here.
+#[test]
+fn preauthorize_under_real_network_max_ttl() {
+    use soroban_sdk::testutils::Ledger as _;
+    let registry = &Registry::new_unverified();
+    let env = registry.env();
+    env.ledger().with_mut(|li| li.max_entry_ttl = 3_110_400);
+    let client = registry.client();
+    let name = &to_string(env, "widget");
+    let (v0, _, _) = versions(env);
+    let alice = &Address::generate(env);
+    let bob = &Address::generate(env);
+    registry.mock_auth_with_addresses_for_publish(
+        name,
+        alice,
+        &Some(v0.clone()),
+        &hw_bytes(env),
+        &[alice],
+    );
+    client.publish(name, alice, &hw_bytes(env), &v0);
+    registry.mock_auths_for(&[alice], "preauthorize_author_transfer", (name, bob));
+    client.preauthorize_author_transfer(name, bob);
+}
