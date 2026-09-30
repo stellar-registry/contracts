@@ -14,11 +14,11 @@ Related repos:
 ## Common Commands
 
 ```bash
-# Install the pinned stellar-cli (v28.0.0) into ./target/bin and set up git hooks
+# Install the pinned stellar-cli (v28.0.0) and stellar-scaffold-cli into ./target/bin and set up git hooks
 just setup
 
-# Build all contracts with the size-optimized profile
-stellar contract build --profile contracts
+# Build all contracts (release profile) and stage wasm in target/stellar/local/
+just build
 
 # Check / lint (library code)
 cargo check --workspace
@@ -27,8 +27,6 @@ cargo clippy --all-targets
 # Run contract tests (build the wasm fixtures first — see Testing)
 cargo test --workspace
 ```
-
-Note: the `justfile` still carries some recipes from the monorepo. Prefer the commands above until it is trimmed to this repo.
 
 ## Architecture
 
@@ -45,13 +43,15 @@ Note: the `justfile` still carries some recipes from the monorepo. Prefer the co
 The registry's tests import compiled fixture wasm via `soroban_sdk::contractimport!` (e.g. `target/stellar/local/hello_world.wasm`). **Build the contracts before running `cargo test`**, otherwise the imports fail to resolve:
 
 ```bash
-stellar contract build --profile contracts
+just build
 cargo test --workspace
 ```
 
+`just test` runs both steps.
+
 ## Build Profile
 
-Contracts use a custom `[profile.contracts]` with aggressive size optimization:
+Contracts build with the root `Cargo.toml`'s `[profile.release]`, which uses aggressive size optimization:
 - `opt-level = "z"` (size optimization)
 - `lto = true`
 - `strip = "symbols"`
