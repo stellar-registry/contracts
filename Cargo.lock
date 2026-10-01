@@ -1268,16 +1268,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "registry-tansu-manager"
-version = "0.1.1"
-dependencies = [
- "soroban-sdk",
- "soroban-sdk-tools",
- "stellar-registry",
- "tansu-stub",
-]
-
-[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1864,13 +1854,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "tansu-stub"
-version = "0.0.0"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]
