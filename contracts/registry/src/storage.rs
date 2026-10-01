@@ -49,11 +49,13 @@ impl Storage {
     pub fn manager(env: &Env) -> Option<Address> {
         env.storage().instance().get(&Manager::to_key(env, &()))
     }
+
     pub fn set_manager_no_auth(env: &Env, new_manager: &Address) {
         env.storage()
             .instance()
             .set(&Manager::to_key(env, &()), new_manager);
     }
+
     pub fn set_manager(env: &Env, new_manager: &Address) {
         Contract::require_admin(env);
         Self::set_manager_no_auth(env, new_manager);
