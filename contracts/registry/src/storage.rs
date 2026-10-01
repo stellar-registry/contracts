@@ -9,7 +9,7 @@ use soroban_sdk_tools::{InstanceItem, TemporaryMap};
 use crate::{
     name::NormalizedName,
     registry::{contract::DeployableClient, wasm::PublishedWasm},
-    storage::maps::{ToStorageKey, MAX_BUMP},
+    storage::maps::ToStorageKey,
     Contract, Error,
 };
 
@@ -75,7 +75,8 @@ impl Storage {
     ) -> Result<Address, Error> {
         let root = Storage::new(env).root_registry;
         if let Some(root_id) = root.get() {
-            root.extend_ttl(MAX_BUMP, MAX_BUMP);
+            let max_bump = env.storage().max_ttl();
+            root.extend_ttl(max_bump, max_bump);
             let client = DeployableClient::new(env, &root_id);
             match client.try_fetch_contract_id(subregistry) {
                 Ok(Ok(addr)) => Ok(addr),
