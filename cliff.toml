@@ -1,0 +1,65 @@
+# git-cliff configuration for the `release-pr` job in
+# .github/workflows/release.yml: computes the `registry` contract's next
+# version and regenerates contracts/registry/CHANGELOG.md, scoped to its tree
+# via --include-path and to `registry-v*` tags via --tag-pattern. This is a
+# COMPLETE config (not a partial override) so git-cliff doesn't merge its
+# built-in defaults back in.
+
+[changelog]
+header = """
+# Changelog\n
+All notable changes to the `registry` contract are documented here. Versions
+are the wasm versions published to the Stellar Registry; the format follows
+[Keep a Changelog](https://keepachangelog.com).\n
+"""
+# `version` is the tag (e.g. registry-v0.7.0); take the part after "-v" so the
+# heading reads as a plain semver.
+body = """
+{% if version %}\
+    ## [{{ version | split(pat="-v") | last }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for entry in commits | commit_groups(groups=commit_parsers_groups) %}
+    ### {{ entry.group | striptags | trim | upper_first }}
+    {% for commit in entry.commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}\n
+"""
+trim = true
+render_always = false
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = false
+topo_order = false
+sort_commits = "oldest"
+# Chores/CI/build/style are noise in a contract changelog — skip them.
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->🚀 Features" },
+  { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+  { message = "^perf", group = "<!-- 2 -->⚡ Performance" },
+  { message = "^refactor", group = "<!-- 3 -->🚜 Refactor" },
+  { message = "^doc", group = "<!-- 4 -->📚 Documentation" },
+  { message = "^test", group = "<!-- 5 -->🧪 Testing" },
+  { message = "^ci", skip = true },
+  { message = "^build", skip = true },
+  { message = "^chore", skip = true },
+  { message = "^style", skip = true },
+  { body = ".*security", group = "<!-- 6 -->🛡️ Security" },
+  { message = "^revert", group = "<!-- 7 -->◀️ Revert" },
+  { message = ".*", group = "<!-- 8 -->💼 Other" },
+]
+
+[bump]
+# feat -> minor, fix/other -> patch, breaking -> major. Pre-1.0 (0.x): keep
+# breaking changes as minor bumps so a stray `!` doesn't jump straight to 1.0.0.
+breaking_always_bump_major = false
+features_always_bump_minor = true

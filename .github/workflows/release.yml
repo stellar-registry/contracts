@@ -1,0 +1,92 @@
+name: Release
+
+# Release pipeline for the `registry` contract, built from the
+# stellar-registry/actions reusable workflows. On every push to main:
+#
+#   release-pr       opens/updates one "chore: release" PR that bumps
+#                    contracts/registry/Cargo.toml and its CHANGELOG.md from the
+#                    conventional commits touching contracts/registry (cliff.toml).
+#   detect-releases  tags `registry-v<version>` when the manifest version has no
+#                    tag yet, i.e. right after the release PR merges.
+#   release          builds the tagged commit (scaffold build, which embeds
+#                    `binver`), creates the GitHub release with
+#                    `registry_v<version>.wasm`, and attests it.
+#   publish          verifies that attestation and the `binver` meta, then
+#                    publishes the wasm to the testnet root registry, authored
+#                    by the registry's smart account and signed by the
+#                    CI_PUBLISH_SECRET_KEY delegate key.
+#
+# release and publish hang off detect-releases with `needs:` in the same run:
+# tags pushed with GITHUB_TOKEN do not trigger workflows. To retry a failed
+# publish, use "Re-run failed jobs" on the same run.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: stellar-registry/actions/.github/workflows/release-pr.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    with:
+      contracts: >-
+        [{"name": "registry",
+          "manifest": "contracts/registry/Cargo.toml",
+          "tag_prefix": "registry-v",
+          "include_paths": ["contracts/registry/**"],
+          "changelog": "contracts/registry/CHANGELOG.md"}]
+
+  detect-releases:
+    permissions:
+      contents: write
+    uses: stellar-registry/actions/.github/workflows/detect-releases.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    with:
+      contracts: >-
+        [{"name": "registry",
+          "manifest": "contracts/registry/Cargo.toml",
+          "tag_prefix": "registry-v"}]
+
+  release:
+    needs: detect-releases
+    if: needs.detect-releases.outputs.releases_created == 'true'
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+    uses: stellar-registry/actions/.github/workflows/contract-release.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    with:
+      package: registry
+      release_name: ${{ fromJSON(needs.detect-releases.outputs.releases)[0].tag }}
+      release_description: "Registry contract release"
+      home_domain: "rgstry.xyz"
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [detect-releases, release]
+    permissions:
+      contents: write
+      id-token: write # gh attestation verify
+    uses: stellar-registry/actions/.github/workflows/registry-publish.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    with:
+      registry: CAAXJETKPYAATU4HVVQUTE2FFBULNFGZNEOC3MS635U5K3GZLAY2HI4M
+      author: CBHPZGZJV4CPISOSWOQBDC66YOY6ESGPFZGL7M4UF3JFMMEAVOTKU5XH
+      wasm_name: registry
+      network: testnet
+      version: ${{ fromJSON(needs.detect-releases.outputs.releases)[0].version }}
+      release_tag: ${{ fromJSON(needs.detect-releases.outputs.releases)[0].tag }}
+      wasm_asset: registry_v${{ fromJSON(needs.detect-releases.outputs.releases)[0].version }}.wasm
+      # The root registry has no `deploy_stateless`.
+      deploy: false
+      # The attestation is made inside the reusable build workflow above.
+      attestation_signer_workflow: stellar-registry/actions/.github/workflows/contract-release.yml
+    secrets:
+      signing_key: ${{ secrets.CI_PUBLISH_SECRET_KEY }}
+      release_token: ${{ secrets.GITHUB_TOKEN }}
