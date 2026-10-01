@@ -3,9 +3,6 @@ use core::marker::PhantomData;
 
 use soroban_sdk::{Env, IntoVal, TryFromVal, Val};
 
-/// Soroban protocol limits for bumping persistent-entry TTLs (in ledgers).
-/// Max is ~1 year; min is ~30 days (assuming ~5s/ledger).
-pub const MAX_BUMP: u32 = 6_312_000 - 1;
 #[allow(dead_code)]
 pub const MIN_BUMP: u32 = 535_679;
 
@@ -70,6 +67,7 @@ where
     }
 
     pub fn extend_ttl_max(&self, key: &K) {
-        self.extend_ttl(key, MAX_BUMP, MAX_BUMP);
+        let max = self.env.storage().max_ttl();
+        self.extend_ttl(key, max, max);
     }
 }
