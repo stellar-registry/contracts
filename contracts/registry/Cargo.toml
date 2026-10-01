@@ -9,7 +9,6 @@ edition = "2021"
 publish = false
 repository = "https://github.com/stellar-registry/contracts/tree/main/contracts/registry"
 
-
 [lib]
 crate-type = ["cdylib"]
 doctest = false
