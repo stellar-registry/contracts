@@ -40,10 +40,11 @@ It separates **Wasm publication** (reusable code), **contract deployment**
 
 ## Building
 
-Contracts build with the size-optimized `contracts` profile:
+Contracts build with the size-optimized `release` profile. `just build` runs
+`stellar scaffold build`, which stages the Wasm in `target/stellar/local/`:
 
 ```bash
-stellar contract build --profile contracts
+just build
 ```
 
 Tests rely on prebuilt fixture Wasm artifacts (imported via

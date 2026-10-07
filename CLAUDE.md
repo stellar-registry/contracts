@@ -35,8 +35,7 @@ cargo test --workspace
 | Path | Purpose |
 |------|---------|
 | `contracts/registry` | The core Registry contract: wasm publication, versioning, named deployments |
-| `contracts/registry-tansu-manager` | A Tansu DAO-gated registry manager: authorizes exactly one registry sub-call per Tansu proposal, gated by `project_key` |
-| `contracts/test/*` | Test fixtures: `hello_world`, `hello_world_v2`, `hello_world_v3`, and `tansu-stub` (a Tansu wire-format stub the manager imports via `import_contract_client!` to decode live proposals) |
+| `contracts/test/*` | Test fixtures: `hello_world`, `hello_world_v2`, `hello_world_v3` |
 
 ## Testing
 

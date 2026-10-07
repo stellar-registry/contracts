@@ -4,7 +4,7 @@ export PATH := './target/bin:' + env_var('PATH')
 export CONFIG_DIR := 'target/'
 export CI_BUILD := env_var_or_default('CI_BUILD', '')
 # Stage built wasm under target/stellar/local/ — the path the registry tests'
-# `contractimport!` and the manager's `import_contract_client!` resolve against.
+# `contractimport!` resolves against.
 export STELLAR_NETWORK := env_var_or_default('STELLAR_NETWORK', 'local')
 
 [private]
@@ -22,10 +22,9 @@ build_contract p:
 
 # Build all contracts with the size-optimized profile. Uses `stellar scaffold
 # build` (not plain `stellar contract build`) so wasm is staged to
-# target/stellar/<network>/, which the registry tests' `contractimport!` and
-# registry-tansu-manager's `import_contract_client!(tansu_stub)` both resolve
-# against. STELLAR_NETWORK defaults to `local` (see stellar-build), matching the
-# `target/stellar/local/...` paths the tests import from.
+# target/stellar/<network>/, which the registry tests' `contractimport!`
+# resolves against. STELLAR_NETWORK defaults to `local` (see stellar-build),
+# matching the `target/stellar/local/...` paths the tests import from.
 build:
     stellar scaffold build
 
