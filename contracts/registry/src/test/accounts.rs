@@ -80,7 +80,7 @@ fn register_already_taken_name() {
 }
 
 #[test]
-fn register_contract_address_as_account_fails() {
+fn register_smart_account() {
     let registry = Registry::new_with_bytes(&hw_bytes, &hw_hash);
     let env = registry.env();
     let client = registry.client();
@@ -88,12 +88,47 @@ fn register_contract_address_as_account_fails() {
 
     env.mock_all_auths();
     let contract_addr = deploy_hw(env, &owner);
+    client.register_account(&to_string(env, "chadoh"), &contract_addr, &owner);
+
+    assert_eq!(
+        client.fetch_account_id(&to_string(env, "chadoh")),
+        contract_addr
+    );
+}
+
+#[test]
+fn register_stellar_asset_contract_as_account_fails() {
+    let registry = Registry::new_with_bytes(&hw_bytes, &hw_hash);
+    let env = registry.env();
+    let client = registry.client();
+    let owner = registry.admin().clone();
+
+    env.mock_all_auths();
+    let sac = env.register_stellar_asset_contract_v2(owner.clone());
 
     assert_eq!(
         client
-            .try_register_account(&to_string(env, "chadoh"), &contract_addr, &owner)
+            .try_register_account(&to_string(env, "chadoh"), &sac.address(), &owner)
             .unwrap_err(),
         Ok(Error::NotAccountAddress)
+    );
+}
+
+#[test]
+fn register_nonexistent_contract_as_account_fails() {
+    let registry = Registry::new_with_bytes(&hw_bytes, &hw_hash);
+    let env = registry.env();
+    let client = registry.client();
+    let owner = registry.admin().clone();
+
+    env.mock_all_auths();
+    let missing = Address::generate(env);
+
+    assert_eq!(
+        client
+            .try_register_account(&to_string(env, "chadoh"), &missing, &owner)
+            .unwrap_err(),
+        Ok(Error::ContractIdAddressDoesNotExist)
     );
 }
 
@@ -168,7 +203,7 @@ fn update_account_address() {
 }
 
 #[test]
-fn update_account_address_to_contract_fails() {
+fn update_account_address_to_smart_account() {
     let (registry, _addr) = setup_with_registered_account(13);
     let env = registry.env();
     let client = registry.client();
@@ -176,10 +211,27 @@ fn update_account_address_to_contract_fails() {
 
     env.mock_all_auths();
     let contract_addr = deploy_hw(env, owner);
+    client.update_account_address(&to_string(env, "my-account"), &contract_addr);
+
+    assert_eq!(
+        client.fetch_account_id(&to_string(env, "my-account")),
+        contract_addr
+    );
+}
+
+#[test]
+fn update_account_address_to_stellar_asset_contract_fails() {
+    let (registry, _addr) = setup_with_registered_account(28);
+    let env = registry.env();
+    let client = registry.client();
+    let owner = registry.admin();
+
+    env.mock_all_auths();
+    let sac = env.register_stellar_asset_contract_v2(owner.clone());
 
     assert_eq!(
         client
-            .try_update_account_address(&to_string(env, "my-account"), &contract_addr)
+            .try_update_account_address(&to_string(env, "my-account"), &sac.address())
             .unwrap_err(),
         Ok(Error::NotAccountAddress)
     );
