@@ -4,6 +4,12 @@ All notable changes to the `registry` contract are documented here. Versions
 are the wasm versions published to the Stellar Registry; the format follows
 [Keep a Changelog](https://keepachangelog.com).
 
+## [0.7.0] - 2026-10-15
+
+### 🚀 Features
+
+- *(registry)* Allow smart accounts (C-addresses) in the account namespace (#63)
+
 ## [0.6.6] - 2026-10-01
 
 ### 🐛 Bug Fixes
