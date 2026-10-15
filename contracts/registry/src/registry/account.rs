@@ -25,6 +25,16 @@ impl Contract {
             .ok_or(Error::AccountNameAlreadyTaken)
     }
 
+    /// Accounts may be classic G-addresses or smart accounts (C-addresses
+    /// backed by a Wasm contract). Stellar Asset Contracts are not accounts.
+    fn assert_valid_account_address(address: &Address) -> Result<(), Error> {
+        match address.executable() {
+            Some(Executable::Account | Executable::Wasm(_)) => Ok(()),
+            Some(Executable::StellarAsset) => Err(Error::NotAccountAddress),
+            None => Err(Error::ContractIdAddressDoesNotExist),
+        }
+    }
+
     fn get_account_entry(env: &Env, account_name: &NormalizedName) -> Result<AccountEntry, Error> {
         Storage::new(env)
             .account
@@ -52,11 +62,7 @@ impl Contract {
         account_address: &Address,
         account_admin: &Address,
     ) -> Result<(), Error> {
-        match account_address.executable() {
-            Some(Executable::Account) => {}
-            Some(_) => return Err(Error::NotAccountAddress),
-            None => return Err(Error::ContractIdAddressDoesNotExist),
-        }
+        Self::assert_valid_account_address(account_address)?;
         let mut account_map = Storage::new(env).account;
         account_map.set(
             account_name,
@@ -77,7 +83,8 @@ impl Contract {
 
 #[contracttrait]
 pub trait AccountRegistrable {
-    /// Register a name for an existing G-address (Stellar account).
+    /// Register a name for an existing G-address (Stellar account) or
+    /// C-address (smart account).
     fn register_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -90,7 +97,7 @@ pub trait AccountRegistrable {
         Ok(())
     }
 
-    /// Look up the G-address of a registered account name
+    /// Look up the address of a registered account name
     fn fetch_account_id(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -143,7 +150,7 @@ pub trait AccountManageable {
         Ok(())
     }
 
-    /// Update the G-address of a registered account name.
+    /// Update the address of a registered account name.
     /// Requires current owner auth, or manager auth if manager is set.
     fn update_account_address(
         env: &Env,
@@ -159,11 +166,7 @@ pub trait AccountManageable {
 
         let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
-        match new_address.executable() {
-            Some(Executable::Account) => {}
-            Some(_) => return Err(Error::NotAccountAddress),
-            None => return Err(Error::ContractIdAddressDoesNotExist),
-        }
+        Contract::assert_valid_account_address(&new_address)?;
 
         storage.account.extend_ttl_max(&account_name);
         storage.account.set(

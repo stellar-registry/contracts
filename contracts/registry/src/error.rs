@@ -49,6 +49,6 @@ pub enum Error {
     AccountNameAlreadyTaken,
     /// No such account registered
     NoSuchAccountRegistered,
-    /// Given address is a contract, not a G-address account
+    /// Given address is a Stellar Asset Contract, not an account
     NotAccountAddress,
 }
