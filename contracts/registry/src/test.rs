@@ -8,6 +8,7 @@ extern crate std;
 mod contracts;
 mod registry;
 
+mod account_consent;
 mod accounts;
 mod author_transfer;
 mod batch;

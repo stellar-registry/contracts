@@ -4,7 +4,7 @@ use crate::storage::Storage;
 
 use soroban_sdk::contracttrait;
 use soroban_sdk::Executable;
-use soroban_sdk::{self, Address, Env};
+use soroban_sdk::{self, symbol_short, Address, Env, IntoVal, Val};
 
 use crate::{error::Error, Contract};
 
@@ -13,15 +13,11 @@ impl Contract {
         env: &Env,
         account_admin: &Address,
         account_name: &NormalizedName,
-    ) -> Result<(), Error> {
-        if let Some(manager) = Storage::manager(env) {
-            manager.require_auth();
-        } else {
-            account_admin.require_auth();
-        }
+    ) -> Result<Address, Error> {
+        let operator = Self::require_owner_or_manager(env, account_admin);
         let is_available = !Storage::new(env).account.has(account_name);
         is_available
-            .then_some(())
+            .then_some(operator)
             .ok_or(Error::AccountNameAlreadyTaken)
     }
 
@@ -32,6 +28,38 @@ impl Contract {
             Some(Executable::Account | Executable::Wasm(_)) => Ok(()),
             Some(Executable::StellarAsset) => Err(Error::NotAccountAddress),
             None => Err(Error::ContractIdAddressDoesNotExist),
+        }
+    }
+
+    fn account_preauth_key(env: &Env, account_name: &NormalizedName, address: &Address) -> Val {
+        (
+            symbol_short!("ACPREAUTH"),
+            account_name.to_string(),
+            address.clone(),
+        )
+            .into_val(env)
+    }
+
+    /// The named address must consent to being named: either it signs this
+    /// call, or it signed `preauthorize_account` earlier (needed when a
+    /// manager executes the call and can't collect its signature). A
+    /// preauthorization is single-use. `operator` has already authorized, and
+    /// the host rejects a second `require_auth` for it in the same call.
+    fn require_account_consent(
+        env: &Env,
+        account_name: &NormalizedName,
+        address: &Address,
+        operator: &Address,
+    ) {
+        if address == operator {
+            return;
+        }
+        let key = Self::account_preauth_key(env, account_name, address);
+        let temporary = env.storage().temporary();
+        if temporary.has(&key) {
+            temporary.remove(&key);
+        } else {
+            address.require_auth();
         }
     }
 
@@ -61,8 +89,10 @@ impl Contract {
         account_name: &NormalizedName,
         account_address: &Address,
         account_admin: &Address,
+        operator: &Address,
     ) -> Result<(), Error> {
         Self::assert_valid_account_address(account_address)?;
+        Self::require_account_consent(env, account_name, account_address, operator);
         let mut account_map = Storage::new(env).account;
         account_map.set(
             account_name,
@@ -75,6 +105,7 @@ impl Contract {
         crate::events::RegisterAccount {
             account_name: account_name.to_string(),
             account_id: account_address.clone(),
+            owner: account_admin.clone(),
         }
         .publish(env);
         Ok(())
@@ -84,7 +115,8 @@ impl Contract {
 #[contracttrait]
 pub trait AccountRegistrable {
     /// Register a name for an existing G-address (Stellar account) or
-    /// C-address (smart account).
+    /// C-address (smart account). Requires `account_address`'s auth, or its
+    /// unexpired `preauthorize_account` for this name.
     fn register_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -92,8 +124,29 @@ pub trait AccountRegistrable {
         owner: soroban_sdk::Address,
     ) -> Result<(), Error> {
         let account_name = account_name.try_into()?;
-        Contract::assert_no_account_entry_and_authorize(env, &owner, &account_name)?;
-        Contract::register_account_name(env, &account_name, &account_address, &owner)?;
+        let operator = Contract::assert_no_account_entry_and_authorize(env, &owner, &account_name)?;
+        Contract::register_account_name(env, &account_name, &account_address, &owner, &operator)?;
+        Ok(())
+    }
+
+    /// Let `account_address` be named `account_name` by a later
+    /// `register_account` or `update_account_address` that it doesn't sign,
+    /// e.g. one executed by a manager. Expires after the network's max
+    /// temporary-entry TTL.
+    fn preauthorize_account(
+        env: &Env,
+        account_name: soroban_sdk::String,
+        account_address: soroban_sdk::Address,
+    ) -> Result<(), Error> {
+        let account_name: NormalizedName = account_name.try_into()?;
+        account_address.require_auth();
+        let key = Contract::account_preauth_key(env, &account_name, &account_address);
+        let temporary = env.storage().temporary();
+        temporary.set(&key, &());
+        // Temporary entries cannot outlive the network's max_entry_ttl; unlike
+        // persistent entries the host traps instead of clamping.
+        let max_ttl = env.storage().max_ttl();
+        temporary.extend_ttl(&key, max_ttl, max_ttl);
         Ok(())
     }
 
@@ -151,7 +204,8 @@ pub trait AccountManageable {
     }
 
     /// Update the address of a registered account name.
-    /// Requires current owner auth, or manager auth if manager is set.
+    /// Requires current owner auth, or manager auth if manager is set, plus
+    /// `new_address`'s consent as in `register_account`.
     fn update_account_address(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -167,6 +221,7 @@ pub trait AccountManageable {
         let operator = Contract::require_owner_or_manager(env, &entry.owner);
 
         Contract::assert_valid_account_address(&new_address)?;
+        Contract::require_account_consent(env, &account_name, &new_address, &operator);
 
         storage.account.extend_ttl_max(&account_name);
         storage.account.set(

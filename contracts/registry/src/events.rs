@@ -67,6 +67,7 @@ pub struct SubRegistry {
 pub struct RegisterAccount {
     pub account_name: String,
     pub account_id: Address,
+    pub owner: Address,
 }
 
 #[contractevent(topics = ["update_acct_owner"])]
