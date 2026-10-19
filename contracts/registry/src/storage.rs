@@ -22,6 +22,7 @@ pub struct Storage {
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
     pub root_registry: InstanceItem<Address>,
     pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
+    pub preauth_accounts: TemporaryMap<(NormalizedName, Address), ()>,
 }
 
 impl Storage {
@@ -33,6 +34,7 @@ impl Storage {
             hash: maps::PersistentMap::new(env),
             root_registry: InstanceItem::new_raw(env, symbol_short!("ROOT_REG").to_val()),
             preauth_transfers: TemporaryMap::new_raw(env),
+            preauth_accounts: TemporaryMap::new_raw(env),
         }
     }
 }
@@ -353,5 +355,24 @@ mod tests {
             assert_eq!(vec_prefix, key_prefix);
             hash = env.crypto().sha256(&hash.to_bytes().into_val(env));
         }
+    }
+
+    /// Temporary keys can't collide if their XDR type tags differ: account
+    /// preauths are vecs, author-transfer preauths strings, batch keys symbols.
+    #[test]
+    fn temporary_key_types_are_distinct() {
+        use super::Storage;
+        use soroban_sdk::{symbol_short, testutils::Address as _, Address};
+        let env = &Env::default();
+        let name = unsafe { NormalizedName::new_unchecked(String::from_str(env, "name")) };
+        let storage = Storage::new(env);
+        let tag = |v: soroban_sdk::Val| v.to_xdr(env).slice(..4);
+        let account = tag(storage
+            .preauth_accounts
+            .get_storage_key(&(name.clone(), Address::generate(env))));
+        let transfer = tag(storage.preauth_transfers.get_storage_key(&name));
+        let batch = tag(symbol_short!("BATCH").to_val());
+        assert_ne!(account, transfer);
+        assert_ne!(account, batch);
     }
 }

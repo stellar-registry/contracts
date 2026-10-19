@@ -4,7 +4,7 @@ use crate::storage::Storage;
 
 use soroban_sdk::contracttrait;
 use soroban_sdk::Executable;
-use soroban_sdk::{self, symbol_short, Address, Env, IntoVal, Val};
+use soroban_sdk::{self, Address, Env};
 
 use crate::{error::Error, Contract};
 
@@ -31,15 +31,6 @@ impl Contract {
         }
     }
 
-    fn account_preauth_key(env: &Env, account_name: &NormalizedName, address: &Address) -> Val {
-        (
-            symbol_short!("ACPREAUTH"),
-            account_name.to_string(),
-            address.clone(),
-        )
-            .into_val(env)
-    }
-
     /// The named address must consent to being named: either it signs this
     /// call, or it signed `preauthorize_account` earlier (needed when a
     /// manager executes the call and can't collect its signature). A
@@ -54,10 +45,10 @@ impl Contract {
         if address == operator {
             return;
         }
-        let key = Self::account_preauth_key(env, account_name, address);
-        let temporary = env.storage().temporary();
-        if temporary.has(&key) {
-            temporary.remove(&key);
+        let preauths = Storage::new(env).preauth_accounts;
+        let key = (account_name.clone(), address.clone());
+        if preauths.has(&key) {
+            preauths.remove(&key);
         } else {
             address.require_auth();
         }
@@ -140,13 +131,13 @@ pub trait AccountRegistrable {
     ) -> Result<(), Error> {
         let account_name: NormalizedName = account_name.try_into()?;
         account_address.require_auth();
-        let key = Contract::account_preauth_key(env, &account_name, &account_address);
-        let temporary = env.storage().temporary();
-        temporary.set(&key, &());
+        let preauths = Storage::new(env).preauth_accounts;
+        let key = (account_name, account_address);
+        preauths.set(&key, &());
         // Temporary entries cannot outlive the network's max_entry_ttl; unlike
         // persistent entries the host traps instead of clamping.
         let max_ttl = env.storage().max_ttl();
-        temporary.extend_ttl(&key, max_ttl, max_ttl);
+        preauths.extend_ttl(&key, max_ttl, max_ttl);
         Ok(())
     }
 
