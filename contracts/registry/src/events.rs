@@ -70,6 +70,21 @@ pub struct RegisterAccount {
     pub owner: Address,
 }
 
+#[contractevent(topics = ["preauth_acct"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreauthorizeAccount {
+    pub account_name: String,
+    pub account_id: Address,
+    pub owner: Address,
+}
+
+#[contractevent(topics = ["revoke_preauth_acct"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RevokeAccountPreauth {
+    pub account_name: String,
+    pub account_id: Address,
+}
+
 #[contractevent(topics = ["update_acct_owner"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UpdateAccountOwner {

@@ -24,9 +24,10 @@ impl Contract {
 
     /// Requires the owner's auth (or the manager's, if set) plus the named
     /// address's consent: either it signs this call, or it signed
-    /// `preauthorize_account` earlier (needed when a manager executes the call
-    /// and can't collect its signature). A matching preauthorization is always
-    /// consumed, so none outlives the naming. Returns the operator.
+    /// `preauthorize_account` for this name and owner earlier (needed when a
+    /// manager executes the call and can't collect its signature). Consent is
+    /// implied when the address is the operator. A matching preauthorization
+    /// is always consumed. Returns the operator.
     fn authorize_account_naming(
         env: &Env,
         owner: &Address,
@@ -36,7 +37,7 @@ impl Contract {
         let operator = Self::require_owner_or_manager(env, owner);
         let preauths = Storage::new(env).preauth_accounts;
         let key = (account_name.clone(), address.clone());
-        if preauths.has(&key) {
+        if preauths.get(&key).as_ref() == Some(owner) {
             preauths.remove(&key);
         } else if *address != operator {
             // The host rejects a second `require_auth` for the operator.
@@ -105,8 +106,10 @@ impl Contract {
 #[contracttrait]
 pub trait AccountRegistrable {
     /// Register a name for an existing G-address (Stellar account) or
-    /// C-address (smart account). Requires `account_address`'s auth, or its
-    /// unexpired `preauthorize_account` for this name.
+    /// C-address (smart account). Requires `owner`'s auth (or the manager's,
+    /// if set) and `account_address`'s consent: its auth, or its unexpired
+    /// `preauthorize_account` for this name and owner. No separate consent is
+    /// needed when `account_address` is the one already authorizing.
     fn register_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -124,11 +127,39 @@ pub trait AccountRegistrable {
         Ok(())
     }
 
-    /// Let `account_address` be named `account_name` by a later
-    /// `register_account` or `update_account_address` that it doesn't sign,
-    /// e.g. one executed by a manager. Expires after the network's max
-    /// temporary-entry TTL.
+    /// Let `account_address` be named `account_name`, owned by `owner`, by a
+    /// later `register_account`, `update_account_address` or `rename_account`
+    /// that it doesn't sign, e.g. one executed by a manager. Single-use;
+    /// expires after the network's max temporary-entry TTL (~30 days on
+    /// mainnet). Replaces this address's earlier preauth for the same name.
     fn preauthorize_account(
+        env: &Env,
+        account_name: soroban_sdk::String,
+        account_address: soroban_sdk::Address,
+        owner: soroban_sdk::Address,
+    ) -> Result<(), Error> {
+        let account_name: NormalizedName = account_name.try_into()?;
+        Contract::assert_valid_account_address(&account_address)?;
+        account_address.require_auth();
+        let preauths = Storage::new(env).preauth_accounts;
+        let key = (account_name.clone(), account_address.clone());
+        preauths.set(&key, &owner);
+        // Temporary entries cannot outlive the network's max_entry_ttl; unlike
+        // persistent entries the host traps instead of clamping.
+        let max_ttl = env.storage().max_ttl();
+        preauths.extend_ttl(&key, max_ttl, max_ttl);
+        crate::events::PreauthorizeAccount {
+            account_name: account_name.to_string(),
+            account_id: account_address,
+            owner,
+        }
+        .publish(env);
+        Ok(())
+    }
+
+    /// Withdraw `account_address`'s pending `preauthorize_account` for
+    /// `account_name`. A no-op if there is none.
+    fn revoke_account_preauth(
         env: &Env,
         account_name: soroban_sdk::String,
         account_address: soroban_sdk::Address,
@@ -136,12 +167,15 @@ pub trait AccountRegistrable {
         let account_name: NormalizedName = account_name.try_into()?;
         account_address.require_auth();
         let preauths = Storage::new(env).preauth_accounts;
-        let key = (account_name, account_address);
-        preauths.set(&key, &());
-        // Temporary entries cannot outlive the network's max_entry_ttl; unlike
-        // persistent entries the host traps instead of clamping.
-        let max_ttl = env.storage().max_ttl();
-        preauths.extend_ttl(&key, max_ttl, max_ttl);
+        let key = (account_name.clone(), account_address.clone());
+        if preauths.has(&key) {
+            preauths.remove(&key);
+            crate::events::RevokeAccountPreauth {
+                account_name: account_name.to_string(),
+                account_id: account_address,
+            }
+            .publish(env);
+        }
         Ok(())
     }
 
@@ -200,7 +234,8 @@ pub trait AccountManageable {
 
     /// Update the address of a registered account name.
     /// Requires current owner auth, or manager auth if manager is set, plus
-    /// `new_address`'s consent as in `register_account`.
+    /// `new_address`'s consent (under the current owner) as in
+    /// `register_account`.
     fn update_account_address(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -237,7 +272,8 @@ pub trait AccountManageable {
     }
 
     /// Rename a registered account name.
-    /// Requires current owner auth, or manager auth if manager is set.
+    /// Requires current owner auth, or manager auth if manager is set, plus
+    /// the address's consent to `new_name` as in `register_account`.
     fn rename_account(
         env: &Env,
         old_name: soroban_sdk::String,
@@ -252,7 +288,8 @@ pub trait AccountManageable {
             .get(&old_name)
             .ok_or(Error::NoSuchAccountRegistered)?;
 
-        let operator = Contract::require_owner_or_manager(env, &entry.owner);
+        let operator =
+            Contract::authorize_account_naming(env, &entry.owner, &new_name, &entry.address);
 
         if storage.account.has(&new_name) {
             return Err(Error::AccountNameAlreadyTaken);

@@ -22,7 +22,8 @@ pub struct Storage {
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
     pub root_registry: InstanceItem<Address>,
     pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
-    pub preauth_accounts: TemporaryMap<(NormalizedName, Address), ()>,
+    /// (name, address) -> the owner the address agreed to be named under
+    pub preauth_accounts: TemporaryMap<(NormalizedName, Address), Address>,
 }
 
 impl Storage {

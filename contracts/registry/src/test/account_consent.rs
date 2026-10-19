@@ -2,7 +2,7 @@ extern crate std;
 
 use crate::{
     error::Error,
-    events::RegisterAccount,
+    events::{PreauthorizeAccount, RegisterAccount, RevokeAccountPreauth},
     test::contracts::fund_account,
     test::registry::{to_string, Registry},
 };
@@ -89,12 +89,23 @@ fn name(env: &Env) -> soroban_sdk::String {
     to_string(env, "my-account")
 }
 
-fn preauthorize(registry: &Registry, account: &Address) {
+fn preauthorize_for(
+    registry: &Registry,
+    account_name: &soroban_sdk::String,
+    account: &Address,
+    owner: &Address,
+) {
     let env = registry.env();
     // `mock_auths` can't mock a G-address, so mock everything and check who signed.
     env.mock_all_auths();
-    registry.client().preauthorize_account(&name(env), account);
+    registry
+        .client()
+        .preauthorize_account(account_name, account, owner);
     assert!(env.auths().iter().any(|(a, _)| a == account));
+}
+
+fn preauthorize(registry: &Registry, account: &Address, owner: &Address) {
+    preauthorize_for(registry, &name(registry.env()), account, owner);
 }
 
 #[test]
@@ -166,7 +177,7 @@ fn managed_register_consumes_preauth() {
     let account = fund_account(env, 43);
     let args = (name(env), &account, &owner);
 
-    preauthorize(&registry, &account);
+    preauthorize(&registry, &account, &owner);
     registry.mock_auths_for(&[&manager], "register_account", args.clone());
     client.register_account(&name(env), &account, &owner);
     assert_eq!(client.fetch_account_id(&name(env)), account);
@@ -188,7 +199,7 @@ fn self_registration_consumes_preauth() {
     let client = registry.client();
     let account = fund_account(env, 54);
 
-    preauthorize(&registry, &account);
+    preauthorize(&registry, &account, &account);
     env.mock_all_auths();
     client.register_account(&name(env), &account, &account);
     client.rename_account(&name(env), &to_string(env, "elsewhere"));
@@ -216,7 +227,7 @@ fn preauth_is_scoped_to_name_and_address() {
     let account = fund_account(env, 44);
     let other = fund_account(env, 45);
 
-    preauthorize(&registry, &account);
+    preauthorize(&registry, &account, &owner);
 
     registry.mock_auths_for(&[&manager], "register_account", (name(env), &other, &owner));
     assert!(client
@@ -246,8 +257,8 @@ fn stranger_preauth_does_not_cancel_pending_one() {
     let account = fund_account(env, 55);
     let mallory = fund_account(env, 56);
 
-    preauthorize(&registry, &account);
-    preauthorize(&registry, &mallory);
+    preauthorize(&registry, &account, &owner);
+    preauthorize(&registry, &mallory, &owner);
 
     registry.mock_auths_for(
         &[&manager],
@@ -268,14 +279,14 @@ fn expired_preauth_is_rejected() {
     let owner = Address::generate(env);
     let account = fund_account(env, 46);
 
-    preauthorize(&registry, &account);
+    preauthorize(&registry, &account, &owner);
     env.ledger().with_mut(|li| li.sequence_number += 10_000);
 
     // A fresh preauth still works, so the failure below is the expiry.
     let fresh = fund_account(env, 53);
     let fresh_name = to_string(env, "fresh");
     env.mock_all_auths();
-    client.preauthorize_account(&fresh_name, &fresh);
+    client.preauthorize_account(&fresh_name, &fresh, &owner);
     registry.mock_auths_for(
         &[&manager],
         "register_account",
@@ -300,10 +311,14 @@ fn preauthorize_requires_named_address_auth() {
     let account = fund_account(env, 47);
     let mallory = Address::generate(env);
 
-    registry.mock_auths_for(&[&mallory], "preauthorize_account", (name(env), &account));
+    registry.mock_auths_for(
+        &[&mallory],
+        "preauthorize_account",
+        (name(env), &account, &mallory),
+    );
     assert!(registry
         .client()
-        .try_preauthorize_account(&name(env), &account)
+        .try_preauthorize_account(&name(env), &account, &mallory)
         .is_err());
 }
 
@@ -313,8 +328,9 @@ fn managed_update_address_requires_preauth() {
     let env = registry.env();
     let client = registry.client();
     let manager = client.manager().unwrap();
+    let owner = Address::generate(env);
     env.mock_all_auths();
-    client.register_account(&name(env), &fund_account(env, 48), &Address::generate(env));
+    client.register_account(&name(env), &fund_account(env, 48), &owner);
     let new_address = fund_account(env, 49);
 
     registry.mock_auths_for(
@@ -326,7 +342,7 @@ fn managed_update_address_requires_preauth() {
         .try_update_account_address(&name(env), &new_address)
         .is_err());
 
-    preauthorize(&registry, &new_address);
+    preauthorize(&registry, &new_address, &owner);
     registry.mock_auths_for(
         &[&manager],
         "update_account_address",
@@ -427,9 +443,9 @@ fn smart_account_preauthorizes_managed_register() {
         true,
         1,
         "preauthorize_account",
-        (name(env), &account),
+        (name(env), &account, &owner),
     )]);
-    client.preauthorize_account(&name(env), &account);
+    client.preauthorize_account(&name(env), &account, &owner);
 
     registry.mock_auths_for(
         &[&manager],
@@ -467,8 +483,208 @@ fn preauthorize_invalid_name_fails() {
     assert_eq!(
         registry
             .client()
-            .try_preauthorize_account(&to_string(env, ""), &Address::generate(env))
+            .try_preauthorize_account(
+                &to_string(env, ""),
+                &Address::generate(env),
+                &Address::generate(env)
+            )
             .unwrap_err(),
         Ok(Error::InvalidName)
+    );
+}
+
+#[test]
+fn unmanaged_preauth_is_bound_to_owner() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let alice = fund_account(env, 60);
+    let alice_owner = Address::generate(env);
+    let bob = Address::generate(env);
+
+    preauthorize(&registry, &alice, &alice_owner);
+
+    // Bob can't use Alice's preauth to own a name pointing at her.
+    registry.mock_auths_for(&[&bob], "register_account", (name(env), &alice, &bob));
+    assert!(client
+        .try_register_account(&name(env), &alice, &bob)
+        .is_err());
+
+    // The mismatch didn't consume it: the owner Alice named still can.
+    registry.mock_auths_for(
+        &[&alice_owner],
+        "register_account",
+        (name(env), &alice, &alice_owner),
+    );
+    client.register_account(&name(env), &alice, &alice_owner);
+    assert_eq!(client.fetch_account_owner(&name(env)), alice_owner);
+}
+
+#[test]
+fn managed_preauth_is_bound_to_owner() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let client = registry.client();
+    let manager = client.manager().unwrap();
+    let alice = fund_account(env, 61);
+    let alice_owner = Address::generate(env);
+    let other_owner = Address::generate(env);
+
+    preauthorize(&registry, &alice, &alice_owner);
+
+    registry.mock_auths_for(
+        &[&manager],
+        "register_account",
+        (name(env), &alice, &other_owner),
+    );
+    assert!(client
+        .try_register_account(&name(env), &alice, &other_owner)
+        .is_err());
+
+    registry.mock_auths_for(
+        &[&manager],
+        "register_account",
+        (name(env), &alice, &alice_owner),
+    );
+    client.register_account(&name(env), &alice, &alice_owner);
+    assert_eq!(client.fetch_account_owner(&name(env)), alice_owner);
+}
+
+#[test]
+fn managed_rename_requires_consent_for_new_name() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let client = registry.client();
+    let manager = client.manager().unwrap();
+    let owner = Address::generate(env);
+    let account = fund_account(env, 62);
+    let new_name = to_string(env, "new-name");
+    env.mock_all_auths();
+    client.register_account(&name(env), &account, &owner);
+
+    let rename = (name(env), &new_name);
+    registry.mock_auths_for(&[&manager], "rename_account", rename.clone());
+    assert!(client.try_rename_account(&name(env), &new_name).is_err());
+
+    preauthorize_for(&registry, &new_name, &account, &owner);
+    registry.mock_auths_for(&[&manager], "rename_account", rename);
+    client.rename_account(&name(env), &new_name);
+    assert_eq!(client.fetch_account_id(&new_name), account);
+
+    // The preauth for `new-name` was consumed; renaming back needs fresh consent.
+    registry.mock_auths_for(&[&manager], "rename_account", (&new_name, name(env)));
+    assert!(client.try_rename_account(&new_name, &name(env)).is_err());
+}
+
+#[test]
+fn unmanaged_rename_requires_address_auth() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let owner = Address::generate(env);
+    let account = fund_account(env, 63);
+    let new_name = to_string(env, "new-name");
+    env.mock_all_auths();
+    client.register_account(&name(env), &account, &owner);
+
+    registry.mock_auths_for(&[&owner], "rename_account", (name(env), &new_name));
+    assert!(client.try_rename_account(&name(env), &new_name).is_err());
+
+    env.mock_all_auths();
+    client.rename_account(&name(env), &new_name);
+    assert!(env.auths().iter().any(|(a, _)| *a == account));
+}
+
+#[test]
+fn revoked_preauth_is_rejected() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let client = registry.client();
+    let manager = client.manager().unwrap();
+    let owner = Address::generate(env);
+    let account = fund_account(env, 64);
+
+    preauthorize(&registry, &account, &owner);
+    env.mock_all_auths();
+    client.revoke_account_preauth(&name(env), &account);
+    assert!(env.auths().iter().any(|(a, _)| *a == account));
+    assert!(env.events().all().events().contains(
+        &RevokeAccountPreauth {
+            account_name: name(env),
+            account_id: account.clone(),
+        }
+        .to_xdr(env, &client.address)
+    ));
+
+    registry.mock_auths_for(
+        &[&manager],
+        "register_account",
+        (name(env), &account, &owner),
+    );
+    assert!(client
+        .try_register_account(&name(env), &account, &owner)
+        .is_err());
+}
+
+#[test]
+fn revoke_requires_named_address_auth() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let owner = Address::generate(env);
+    let account = fund_account(env, 65);
+    let mallory = Address::generate(env);
+
+    preauthorize(&registry, &account, &owner);
+    registry.mock_auths_for(&[&mallory], "revoke_account_preauth", (name(env), &account));
+    assert!(registry
+        .client()
+        .try_revoke_account_preauth(&name(env), &account)
+        .is_err());
+}
+
+#[test]
+fn revoke_without_preauth_is_a_silent_no_op() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let account = fund_account(env, 66);
+
+    env.mock_all_auths();
+    registry
+        .client()
+        .revoke_account_preauth(&name(env), &account);
+    assert!(env.events().all().events().is_empty());
+}
+
+#[test]
+fn preauthorize_emits_event() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    let owner = Address::generate(env);
+    let account = fund_account(env, 67);
+
+    preauthorize(&registry, &account, &owner);
+    assert!(env.events().all().events().contains(
+        &PreauthorizeAccount {
+            account_name: name(env),
+            account_id: account,
+            owner,
+        }
+        .to_xdr(env, &registry.client().address)
+    ));
+}
+
+#[test]
+fn preauthorize_stellar_asset_contract_fails() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    env.mock_all_auths();
+    let sac = env.register_stellar_asset_contract_v2(Address::generate(env));
+
+    assert_eq!(
+        registry
+            .client()
+            .try_preauthorize_account(&name(env), &sac.address(), &Address::generate(env))
+            .unwrap_err(),
+        Ok(Error::NotAccountAddress)
     );
 }
