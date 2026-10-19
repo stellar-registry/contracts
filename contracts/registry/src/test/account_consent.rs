@@ -182,6 +182,31 @@ fn managed_register_consumes_preauth() {
 }
 
 #[test]
+fn self_registration_consumes_preauth() {
+    let registry = Registry::new_non_root_unmanaged();
+    let env = registry.env();
+    let client = registry.client();
+    let account = fund_account(env, 54);
+
+    preauthorize(&registry, &account);
+    env.mock_all_auths();
+    client.register_account(&name(env), &account, &account);
+    client.rename_account(&name(env), &to_string(env, "elsewhere"));
+
+    // The preauth was spent on the self-registration, so a stranger can't
+    // reuse it to name `account` without a fresh signature.
+    let stranger = Address::generate(env);
+    registry.mock_auths_for(
+        &[&stranger],
+        "register_account",
+        (name(env), &account, &stranger),
+    );
+    assert!(client
+        .try_register_account(&name(env), &account, &stranger)
+        .is_err());
+}
+
+#[test]
 fn preauth_is_scoped_to_name_and_address() {
     let registry = Registry::new_non_root_managed();
     let env = registry.env();

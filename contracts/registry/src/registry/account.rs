@@ -33,23 +33,22 @@ impl Contract {
 
     /// The named address must consent to being named: either it signs this
     /// call, or it signed `preauthorize_account` earlier (needed when a
-    /// manager executes the call and can't collect its signature). A
-    /// preauthorization is single-use. `operator` has already authorized, and
-    /// the host rejects a second `require_auth` for it in the same call.
+    /// manager executes the call and can't collect its signature). A matching
+    /// preauthorization is always consumed, so none outlives the naming.
+    /// `operator` has already authorized, and the host rejects a second
+    /// `require_auth` for it in the same call.
     fn require_account_consent(
         env: &Env,
         account_name: &NormalizedName,
         address: &Address,
         operator: &Address,
     ) {
-        if address == operator {
-            return;
-        }
         let preauths = Storage::new(env).preauth_accounts;
         let key = (account_name.clone(), address.clone());
-        if preauths.has(&key) {
+        let preauthorized = preauths.has(&key);
+        if preauthorized {
             preauths.remove(&key);
-        } else {
+        } else if address != operator {
             address.require_auth();
         }
     }
