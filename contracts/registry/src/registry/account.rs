@@ -35,8 +35,9 @@ impl Contract {
     ) -> Address {
         let operator = Self::require_owner_or_manager(env, owner);
         let preauths = Storage::new(env).preauth_accounts;
-        if preauths.get(account_name).as_ref() == Some(address) {
-            preauths.remove(account_name);
+        let key = (account_name.clone(), address.clone());
+        if preauths.has(&key) {
+            preauths.remove(&key);
         } else if *address != operator {
             // The host rejects a second `require_auth` for the operator.
             address.require_auth();
@@ -126,8 +127,7 @@ pub trait AccountRegistrable {
     /// Let `account_address` be named `account_name` by a later
     /// `register_account` or `update_account_address` that it doesn't sign,
     /// e.g. one executed by a manager. Expires after the network's max
-    /// temporary-entry TTL. Replaces any pending preauthorization for this
-    /// name.
+    /// temporary-entry TTL.
     fn preauthorize_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -136,11 +136,12 @@ pub trait AccountRegistrable {
         let account_name: NormalizedName = account_name.try_into()?;
         account_address.require_auth();
         let preauths = Storage::new(env).preauth_accounts;
-        preauths.set(&account_name, &account_address);
+        let key = (account_name, account_address);
+        preauths.set(&key, &());
         // Temporary entries cannot outlive the network's max_entry_ttl; unlike
         // persistent entries the host traps instead of clamping.
         let max_ttl = env.storage().max_ttl();
-        preauths.extend_ttl(&account_name, max_ttl, max_ttl);
+        preauths.extend_ttl(&key, max_ttl, max_ttl);
         Ok(())
     }
 

@@ -234,11 +234,10 @@ fn preauth_is_scoped_to_name_and_address() {
         .is_err());
 }
 
-/// One pending preauth per name: a later one replaces it. That only lets a
-/// stranger cancel someone's pending preauth, not take over the name, since
-/// the registration then needs the stranger's own address.
+/// Preauths are keyed by name and address, so a stranger preauthorizing the
+/// same name can't cancel a pending one.
 #[test]
-fn later_preauth_for_same_name_replaces_pending_one() {
+fn stranger_preauth_does_not_cancel_pending_one() {
     let registry = Registry::new_non_root_managed();
     let env = registry.env();
     let client = registry.client();
@@ -255,17 +254,8 @@ fn later_preauth_for_same_name_replaces_pending_one() {
         "register_account",
         (name(env), &account, &owner),
     );
-    assert!(client
-        .try_register_account(&name(env), &account, &owner)
-        .is_err());
-
-    registry.mock_auths_for(
-        &[&manager],
-        "register_account",
-        (name(env), &mallory, &owner),
-    );
-    client.register_account(&name(env), &mallory, &owner);
-    assert_eq!(client.fetch_account_id(&name(env)), mallory);
+    client.register_account(&name(env), &account, &owner);
+    assert_eq!(client.fetch_account_id(&name(env)), account);
 }
 
 #[test]
