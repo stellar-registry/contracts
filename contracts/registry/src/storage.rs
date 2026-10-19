@@ -4,7 +4,7 @@ use soroban_sdk::{
     xdr::{ScErrorCode, ScErrorType},
     Address, BytesN, Env, IntoVal, TryFromVal, Val,
 };
-use soroban_sdk_tools::{InstanceItem, TemporaryMap};
+use soroban_sdk_tools::{InstanceItem, StorageKey, TemporaryMap};
 
 use crate::{
     name::NormalizedName,
@@ -22,7 +22,7 @@ pub struct Storage {
     pub hash: maps::PersistentMap<BytesN<32>, (), HashKey>,
     pub root_registry: InstanceItem<Address>,
     pub preauth_transfers: TemporaryMap<NormalizedName, Address>,
-    pub preauth_accounts: TemporaryMap<(NormalizedName, Address), ()>,
+    pub preauth_accounts: TemporaryMap<NormalizedName, Address, AccountPreauthKey>,
 }
 
 impl Storage {
@@ -106,6 +106,23 @@ impl Storage {
         } else {
             false
         }
+    }
+}
+
+/// Prefixed so it can't collide with `preauth_transfers`, which is keyed by
+/// the bare name in the same (temporary) storage.
+#[derive(Clone)]
+pub struct AccountPreauthKey(NormalizedName);
+
+impl From<NormalizedName> for AccountPreauthKey {
+    fn from(name: NormalizedName) -> Self {
+        Self(name)
+    }
+}
+
+impl StorageKey for AccountPreauthKey {
+    fn to_key(&self, env: &Env) -> Val {
+        (symbol_short!("ACPRE"), self.0.to_string()).into_val(env)
     }
 }
 
@@ -362,14 +379,12 @@ mod tests {
     #[test]
     fn temporary_key_types_are_distinct() {
         use super::Storage;
-        use soroban_sdk::{symbol_short, testutils::Address as _, Address};
+        use soroban_sdk::symbol_short;
         let env = &Env::default();
         let name = unsafe { NormalizedName::new_unchecked(String::from_str(env, "name")) };
         let storage = Storage::new(env);
         let tag = |v: soroban_sdk::Val| v.to_xdr(env).slice(..4);
-        let account = tag(storage
-            .preauth_accounts
-            .get_storage_key(&(name.clone(), Address::generate(env))));
+        let account = tag(storage.preauth_accounts.get_storage_key(&name));
         let transfer = tag(storage.preauth_transfers.get_storage_key(&name));
         let batch = tag(symbol_short!("BATCH").to_val());
         assert_ne!(account, transfer);

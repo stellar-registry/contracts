@@ -13,12 +13,35 @@ impl Contract {
         env: &Env,
         account_admin: &Address,
         account_name: &NormalizedName,
-    ) -> Result<Address, Error> {
-        let operator = Self::require_owner_or_manager(env, account_admin);
+        account_address: &Address,
+    ) -> Result<(), Error> {
+        Self::authorize_account_naming(env, account_admin, account_name, account_address);
         let is_available = !Storage::new(env).account.has(account_name);
         is_available
-            .then_some(operator)
+            .then_some(())
             .ok_or(Error::AccountNameAlreadyTaken)
+    }
+
+    /// Requires the owner's auth (or the manager's, if set) plus the named
+    /// address's consent: either it signs this call, or it signed
+    /// `preauthorize_account` earlier (needed when a manager executes the call
+    /// and can't collect its signature). A matching preauthorization is always
+    /// consumed, so none outlives the naming. Returns the operator.
+    fn authorize_account_naming(
+        env: &Env,
+        owner: &Address,
+        account_name: &NormalizedName,
+        address: &Address,
+    ) -> Address {
+        let operator = Self::require_owner_or_manager(env, owner);
+        let preauths = Storage::new(env).preauth_accounts;
+        if preauths.get(account_name).as_ref() == Some(address) {
+            preauths.remove(account_name);
+        } else if *address != operator {
+            // The host rejects a second `require_auth` for the operator.
+            address.require_auth();
+        }
+        operator
     }
 
     /// Accounts may be classic G-addresses or smart accounts (C-addresses
@@ -28,28 +51,6 @@ impl Contract {
             Some(Executable::Account | Executable::Wasm(_)) => Ok(()),
             Some(Executable::StellarAsset) => Err(Error::NotAccountAddress),
             None => Err(Error::ContractIdAddressDoesNotExist),
-        }
-    }
-
-    /// The named address must consent to being named: either it signs this
-    /// call, or it signed `preauthorize_account` earlier (needed when a
-    /// manager executes the call and can't collect its signature). A matching
-    /// preauthorization is always consumed, so none outlives the naming.
-    /// `operator` has already authorized, and the host rejects a second
-    /// `require_auth` for it in the same call.
-    fn require_account_consent(
-        env: &Env,
-        account_name: &NormalizedName,
-        address: &Address,
-        operator: &Address,
-    ) {
-        let preauths = Storage::new(env).preauth_accounts;
-        let key = (account_name.clone(), address.clone());
-        let preauthorized = preauths.has(&key);
-        if preauthorized {
-            preauths.remove(&key);
-        } else if address != operator {
-            address.require_auth();
         }
     }
 
@@ -79,10 +80,8 @@ impl Contract {
         account_name: &NormalizedName,
         account_address: &Address,
         account_admin: &Address,
-        operator: &Address,
     ) -> Result<(), Error> {
         Self::assert_valid_account_address(account_address)?;
-        Self::require_account_consent(env, account_name, account_address, operator);
         let mut account_map = Storage::new(env).account;
         account_map.set(
             account_name,
@@ -114,15 +113,21 @@ pub trait AccountRegistrable {
         owner: soroban_sdk::Address,
     ) -> Result<(), Error> {
         let account_name = account_name.try_into()?;
-        let operator = Contract::assert_no_account_entry_and_authorize(env, &owner, &account_name)?;
-        Contract::register_account_name(env, &account_name, &account_address, &owner, &operator)?;
+        Contract::assert_no_account_entry_and_authorize(
+            env,
+            &owner,
+            &account_name,
+            &account_address,
+        )?;
+        Contract::register_account_name(env, &account_name, &account_address, &owner)?;
         Ok(())
     }
 
     /// Let `account_address` be named `account_name` by a later
     /// `register_account` or `update_account_address` that it doesn't sign,
     /// e.g. one executed by a manager. Expires after the network's max
-    /// temporary-entry TTL.
+    /// temporary-entry TTL. Replaces any pending preauthorization for this
+    /// name.
     fn preauthorize_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -131,12 +136,11 @@ pub trait AccountRegistrable {
         let account_name: NormalizedName = account_name.try_into()?;
         account_address.require_auth();
         let preauths = Storage::new(env).preauth_accounts;
-        let key = (account_name, account_address);
-        preauths.set(&key, &());
+        preauths.set(&account_name, &account_address);
         // Temporary entries cannot outlive the network's max_entry_ttl; unlike
         // persistent entries the host traps instead of clamping.
         let max_ttl = env.storage().max_ttl();
-        preauths.extend_ttl(&key, max_ttl, max_ttl);
+        preauths.extend_ttl(&account_name, max_ttl, max_ttl);
         Ok(())
     }
 
@@ -208,10 +212,10 @@ pub trait AccountManageable {
             .get(&account_name)
             .ok_or(Error::NoSuchAccountRegistered)?;
 
-        let operator = Contract::require_owner_or_manager(env, &entry.owner);
+        let operator =
+            Contract::authorize_account_naming(env, &entry.owner, &account_name, &new_address);
 
         Contract::assert_valid_account_address(&new_address)?;
-        Contract::require_account_consent(env, &account_name, &new_address, &operator);
 
         storage.account.extend_ttl_max(&account_name);
         storage.account.set(
