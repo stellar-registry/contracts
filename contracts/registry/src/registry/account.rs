@@ -130,7 +130,7 @@ pub trait AccountRegistrable {
     /// Let `account_address` be named `account_name`, owned by `owner`, by a
     /// later `register_account`, `update_account_address` or `rename_account`
     /// that it doesn't sign, e.g. one executed by a manager. Single-use;
-    /// expires after the network's max temporary-entry TTL (~30 days on
+    /// expires after the network's max temporary-entry TTL (~180 days on
     /// mainnet). Replaces this address's earlier preauth for the same name.
     fn preauthorize_account(
         env: &Env,
