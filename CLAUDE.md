@@ -14,7 +14,7 @@ Related repos:
 ## Common Commands
 
 ```bash
-# Install the pinned stellar-cli (v28.0.0) and stellar-scaffold-cli into ./target/bin and set up git hooks
+# Install the pinned stellar-cli (v28.1.0) and stellar-scaffold-cli into ./target/bin and set up git hooks
 just setup
 
 # Build all contracts (release profile) and stage wasm in target/stellar/local/

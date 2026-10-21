@@ -34,7 +34,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: stellar-registry/actions/.github/workflows/release-pr.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    uses: stellar-registry/actions/.github/workflows/release-pr.yml@1c4906afa29c1745e866cd966d863779296cbbe3 # v2.0.0
     with:
       contracts: >-
         [{"name": "registry",
@@ -46,7 +46,7 @@ jobs:
   detect-releases:
     permissions:
       contents: write
-    uses: stellar-registry/actions/.github/workflows/detect-releases.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    uses: stellar-registry/actions/.github/workflows/detect-releases.yml@1c4906afa29c1745e866cd966d863779296cbbe3 # v2.0.0
     with:
       contracts: >-
         [{"name": "registry",
@@ -60,7 +60,7 @@ jobs:
       id-token: write
       contents: write
       attestations: write
-    uses: stellar-registry/actions/.github/workflows/contract-release.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    uses: stellar-registry/actions/.github/workflows/contract-release.yml@1c4906afa29c1745e866cd966d863779296cbbe3 # v2.0.0
     with:
       package: registry
       release_name: ${{ fromJSON(needs.detect-releases.outputs.releases)[0].tag }}
@@ -74,7 +74,7 @@ jobs:
     permissions:
       contents: write
       id-token: write # gh attestation verify
-    uses: stellar-registry/actions/.github/workflows/registry-publish.yml@7152f7c264fcba286f01d372cb540d3b19c22834
+    uses: stellar-registry/actions/.github/workflows/registry-publish.yml@1c4906afa29c1745e866cd966d863779296cbbe3 # v2.0.0
     with:
       registry: CAAXJETKPYAATU4HVVQUTE2FFBULNFGZNEOC3MS635U5K3GZLAY2HI4M
       author: CBHPZGZJV4CPISOSWOQBDC66YOY6ESGPFZGL7M4UF3JFMMEAVOTKU5XH
