@@ -66,9 +66,9 @@ jobs:
       release_name: ${{ fromJSON(needs.detect-releases.outputs.releases)[0].tag }}
       release_description: "Registry contract release"
       home_domain: "rgstry.xyz"
-      # Match CI; the workflow default (0.0.27) is older than the unpinned
-      # latest this job installed before.
-      scaffold_version: "0.0.30"
+      # Match CI rather than the workflow defaults (scaffold 0.0.27, cli 26.0.0).
+      scaffold_version: "0.0.31"
+      stellar_cli_version: "28.1.0"
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -41,7 +41,7 @@ jobs:
         run: cargo fmt --all -- --check
       - uses: stellar/stellar-cli@v28.1.0
       - name: Install stellar-scaffold (just build uses `stellar scaffold build`)
-        run: cargo binstall -y stellar-scaffold-cli@0.0.30
+        run: cargo binstall -y stellar-scaffold-cli@0.0.31
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: build since clippy needs contracts to be built
