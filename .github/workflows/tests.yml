@@ -32,10 +32,12 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       - uses: cargo-bins/cargo-binstall@main
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - uses: stellar/stellar-cli@v28.1.0
       - name: Install stellar-scaffold (just build uses `stellar scaffold build`)
-        run: cargo binstall -y stellar-scaffold-cli@0.0.24
-      - uses: mozilla-actions/sccache-action@v0.0.11
+        run: cargo binstall -y stellar-scaffold-cli@0.0.30
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       # `just test` builds the contracts (so the test wasms exist for
       # `contractimport!`) and then runs the tests, which execute in the
       # in-process Soroban test env and need no RPC node.
