@@ -25,21 +25,24 @@ build_contract p:
 # target/stellar/<network>/, which the registry tests' `contractimport!`
 # resolves against. STELLAR_NETWORK defaults to `local` (see stellar-build),
 # matching the `target/stellar/local/...` paths the tests import from.
+# `cargo fetch` checks CI's --locked first, since scaffold rewrites Cargo.lock
+# before its own --locked applies.
 build:
-    stellar scaffold build
+    cargo fetch {{ CI_BUILD }}
+    stellar scaffold build {{ CI_BUILD }}
 
 # Setup git hooks and pin the CLI versions
 setup:
     git config core.hooksPath .githooks
     -cargo binstall -y stellar-cli --version 28.0.0 --force --install-path ./target/bin
-    -cargo binstall -y stellar-scaffold-cli --version 0.0.24 --force --install-path ./target/bin
+    -cargo binstall -y stellar-scaffold-cli --version 0.0.30 --force --install-path ./target/bin
 
 # Tests import compiled fixture wasm via `contractimport!`, so build first
 test: build
-    cargo t
+    cargo t {{ CI_BUILD }}
 
 clippy *args:
-    cargo clippy --all {{ args }} \
+    cargo clippy --all {{ CI_BUILD }} {{ args }} \
     -- -Dclippy::pedantic -Aclippy::must_use_candidate -Aclippy::missing_errors_doc -Aclippy::missing_panics_doc
 
 clippy-test:
