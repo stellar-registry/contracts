@@ -1084,6 +1084,62 @@ fn deploy_with_subregistry_from_two_subregistries() {
 }
 
 #[test]
+fn deploy_with_subregistry_does_not_extend_own_instance_or_code() {
+    // Bumping the instance to max TTL also bumps the registry's code entry,
+    // whose rent can dwarf any sane fee (~20K XLM on testnet).
+    use crate::test::registry::registry as registry_wasm;
+    use soroban_sdk::testutils::Deployer as _;
+
+    let registry = &Registry::new();
+    let env = registry.env();
+    let root_client = registry.client();
+    let sub1_addr = root_client.fetch_contract_id(&to_string(env, "unverified"));
+    let sub1_client = ContractClient::new(env, &sub1_addr);
+
+    let sub2_admin = &Address::generate(env);
+    let sub2_addr = registry_wasm::WASM.register(
+        env,
+        None,
+        ContractArgs::__constructor(sub2_admin, &None, &Some(root_client.address.clone())),
+    );
+    let sub2_name = to_string(env, "sub2");
+    let wasm_name = &to_string(env, "hello");
+    env.mock_all_auths();
+    root_client.register_contract(&sub2_name, &sub2_addr, sub2_admin);
+    ContractClient::new(env, &sub2_addr).publish(
+        wasm_name,
+        sub2_admin,
+        &hw_bytes(env),
+        &registry.default_version(),
+    );
+
+    let instance_ttl = env.deployer().get_contract_instance_ttl(&sub1_addr);
+    let code_ttl = env.deployer().get_contract_code_ttl(&sub1_addr);
+
+    let admin = registry.admin();
+    let init = Some(
+        contracts::hello_world::Args::__constructor(admin)
+            .try_into_val(env)
+            .unwrap(),
+    );
+    sub1_client.deploy_with_subregistry(
+        wasm_name,
+        &None,
+        &to_string(env, "my_contract"),
+        admin,
+        &init,
+        &None,
+        &sub2_name,
+    );
+
+    assert_eq!(
+        env.deployer().get_contract_instance_ttl(&sub1_addr),
+        instance_ttl
+    );
+    assert_eq!(env.deployer().get_contract_code_ttl(&sub1_addr), code_ttl);
+}
+
+#[test]
 fn deploy_with_subregistry_missing_version_surfaces_error() {
     // Requesting a version that isn't published on the subregistry surfaces
     // `NoSuchVersion` back through the xcc, confirming non-missing-wasm

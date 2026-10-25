@@ -78,10 +78,7 @@ impl Storage {
         env: &Env,
         subregistry: &soroban_sdk::String,
     ) -> Result<Address, Error> {
-        let root = Storage::new(env).root_registry;
-        if let Some(root_id) = root.get() {
-            let max_bump = env.storage().max_ttl();
-            root.extend_ttl(max_bump, max_bump);
+        if let Some(root_id) = Storage::new(env).root_registry.get() {
             let client = DeployableClient::new(env, &root_id);
             match client.try_fetch_contract_id(subregistry) {
                 Ok(Ok(addr)) => Ok(addr),
