@@ -4,6 +4,12 @@ All notable changes to the `registry` contract are documented here. Versions
 are the wasm versions published to the Stellar Registry; the format follows
 [Keep a Changelog](https://keepachangelog.com).
 
+## [0.8.1] - 2026-10-25
+
+### 🐛 Bug Fixes
+
+- *(registry)* Don't bump own instance TTL in resolve_subregistry (#73)
+
 ## [0.8.0] - 2026-10-20
 
 ### 🚀 Features
