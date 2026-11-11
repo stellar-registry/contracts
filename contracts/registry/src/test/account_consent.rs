@@ -304,6 +304,53 @@ fn expired_preauth_is_rejected() {
         .is_err());
 }
 
+/// On real networks the preauth lapses after `BATCH_TTL`, well before the
+/// network's max entry TTL.
+#[test]
+fn preauth_lapses_after_preauth_ttl() {
+    let registry = Registry::new_non_root_managed();
+    let env = registry.env();
+    env.ledger().with_mut(|li| li.max_entry_ttl = 3_110_400);
+    let client = registry.client();
+    let manager = client.manager().unwrap();
+    let owner = Address::generate(env);
+    let early = fund_account(env, 46);
+    let late = fund_account(env, 53);
+    let early_name = to_string(env, "early");
+    let late_name = to_string(env, "late");
+
+    env.mock_all_auths();
+    client.preauthorize_account(&early_name, &early, &owner);
+    client.preauthorize_account(&late_name, &late, &owner);
+    env.ledger()
+        .with_mut(|li| li.sequence_number += crate::storage::BATCH_TTL);
+
+    registry.mock_auths_for(
+        &[&manager],
+        "register_account",
+        (&early_name, &early, &owner),
+    );
+    client.register_account(&early_name, &early, &owner);
+
+    env.ledger().with_mut(|li| li.sequence_number += 1);
+    // A fresh preauth still works, so the failure below is the expiry.
+    let fresh = fund_account(env, 60);
+    let fresh_name = to_string(env, "fresh");
+    env.mock_all_auths();
+    client.preauthorize_account(&fresh_name, &fresh, &owner);
+    registry.mock_auths_for(
+        &[&manager],
+        "register_account",
+        (&fresh_name, &fresh, &owner),
+    );
+    client.register_account(&fresh_name, &fresh, &owner);
+
+    registry.mock_auths_for(&[&manager], "register_account", (&late_name, &late, &owner));
+    assert!(client
+        .try_register_account(&late_name, &late, &owner)
+        .is_err());
+}
+
 #[test]
 fn preauthorize_requires_named_address_auth() {
     let registry = Registry::new_non_root_managed();

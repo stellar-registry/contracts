@@ -190,7 +190,7 @@ impl TryFromVal<Env, Val> for ContractEntry {
     }
 }
 
-/// ~1 week at 5s/ledger
+/// ~1 week at 5s/ledger. Also caps account preauths.
 pub const BATCH_TTL: u32 = 120_960;
 
 impl Storage {
