@@ -304,7 +304,7 @@ fn expired_preauth_is_rejected() {
         .is_err());
 }
 
-/// On real networks the preauth lapses after `PREAUTH_TTL`, well before the
+/// On real networks the preauth lapses after `BATCH_TTL`, well before the
 /// network's max entry TTL.
 #[test]
 fn preauth_lapses_after_preauth_ttl() {
@@ -323,7 +323,7 @@ fn preauth_lapses_after_preauth_ttl() {
     client.preauthorize_account(&early_name, &early, &owner);
     client.preauthorize_account(&late_name, &late, &owner);
     env.ledger()
-        .with_mut(|li| li.sequence_number += crate::storage::PREAUTH_TTL);
+        .with_mut(|li| li.sequence_number += crate::storage::BATCH_TTL);
 
     registry.mock_auths_for(
         &[&manager],
