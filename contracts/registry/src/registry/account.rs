@@ -145,8 +145,8 @@ pub trait AccountRegistrable {
         let preauths = Storage::new(env).preauth_accounts;
         let key = (account_name.clone(), account_address.clone());
         preauths.set(&key, &owner);
-        // Temporary entries cannot outlive the network's max_entry_ttl; unlike
-        // persistent entries the host traps instead of clamping.
+        // Also capped at max_ttl: temporary entries can't outlive the network's
+        // max_entry_ttl, and the host traps rather than clamping.
         let ttl = env.storage().max_ttl().min(PREAUTH_TTL);
         preauths.extend_ttl(&key, ttl, ttl);
         crate::events::PreauthorizeAccount {
