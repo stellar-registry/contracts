@@ -193,6 +193,10 @@ impl TryFromVal<Env, Val> for ContractEntry {
 /// ~1 week at 5s/ledger
 pub const BATCH_TTL: u32 = 120_960;
 
+/// ~30 days at 5s/ledger: long enough for a governance proposal to pass and
+/// be executed.
+pub const PREAUTH_TTL: u32 = 518_400;
+
 impl Storage {
     pub fn get_batch(
         env: &Env,

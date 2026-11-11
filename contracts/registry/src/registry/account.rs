@@ -1,6 +1,7 @@
 use crate::name::NormalizedName;
 use crate::storage::AccountEntry;
 use crate::storage::Storage;
+use crate::storage::PREAUTH_TTL;
 
 use soroban_sdk::contracttrait;
 use soroban_sdk::Executable;
@@ -130,8 +131,8 @@ pub trait AccountRegistrable {
     /// Let `account_address` be named `account_name`, owned by `owner`, by a
     /// later `register_account`, `update_account_address` or `rename_account`
     /// that it doesn't sign, e.g. one executed by a manager. Single-use;
-    /// expires after the network's max temporary-entry TTL (~180 days on
-    /// mainnet). Replaces this address's earlier preauth for the same name.
+    /// expires after ~30 days. Replaces this address's earlier preauth for
+    /// the same name.
     fn preauthorize_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -146,8 +147,8 @@ pub trait AccountRegistrable {
         preauths.set(&key, &owner);
         // Temporary entries cannot outlive the network's max_entry_ttl; unlike
         // persistent entries the host traps instead of clamping.
-        let max_ttl = env.storage().max_ttl();
-        preauths.extend_ttl(&key, max_ttl, max_ttl);
+        let ttl = env.storage().max_ttl().min(PREAUTH_TTL);
+        preauths.extend_ttl(&key, ttl, ttl);
         crate::events::PreauthorizeAccount {
             account_name: account_name.to_string(),
             account_id: account_address,
