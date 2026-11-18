@@ -199,40 +199,6 @@ pub trait AccountRegistrable {
 
 #[contracttrait]
 pub trait AccountManageable {
-    /// Update the owner of a registered account name.
-    /// Requires current owner auth, or manager auth if manager is set.
-    fn update_account_owner(
-        env: &Env,
-        account_name: soroban_sdk::String,
-        new_owner: soroban_sdk::Address,
-    ) -> Result<(), Error> {
-        let account_name: NormalizedName = account_name.try_into()?;
-        let mut storage = Storage::new(env);
-        let entry = storage
-            .account
-            .get(&account_name)
-            .ok_or(Error::NoSuchAccountRegistered)?;
-
-        let operator = Contract::require_owner_or_manager(env, &entry.owner);
-
-        storage.account.extend_ttl_max(&account_name);
-        storage.account.set(
-            &account_name,
-            &AccountEntry {
-                owner: new_owner.clone(),
-                address: entry.address,
-                flagged: entry.flagged,
-            },
-        );
-        crate::events::UpdateAccountOwner {
-            account_name: account_name.to_string(),
-            new_owner,
-            operator,
-        }
-        .publish(env);
-        Ok(())
-    }
-
     /// Update the address of a registered account name.
     /// Requires current owner auth, or manager auth if manager is set, plus
     /// `new_address`'s consent (under the current owner) as in

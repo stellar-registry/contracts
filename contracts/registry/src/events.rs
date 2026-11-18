@@ -85,14 +85,6 @@ pub struct RevokeAccountPreauth {
     pub account_id: Address,
 }
 
-#[contractevent(topics = ["update_acct_owner"])]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UpdateAccountOwner {
-    pub account_name: String,
-    pub new_owner: Address,
-    pub operator: Address,
-}
-
 #[contractevent(topics = ["update_acct_addr"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UpdateAccountAddress {

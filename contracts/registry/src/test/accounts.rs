@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    events::{RenameAccount, SecurityFlagAccount, UpdateAccountAddress, UpdateAccountOwner},
+    events::{RenameAccount, SecurityFlagAccount, UpdateAccountAddress},
     test::contracts::{fund_account, hello_world, hw_bytes, hw_hash},
     test::registry::{to_string, Registry},
 };
@@ -171,22 +171,6 @@ fn account_and_contract_namespaces_are_independent() {
 }
 
 #[test]
-fn update_account_owner() {
-    let (registry, _addr) = setup_with_registered_account(10);
-    let env = registry.env();
-    let client = registry.client();
-
-    let new_owner = Address::generate(env);
-    env.mock_all_auths();
-    client.update_account_owner(&to_string(env, "my-account"), &new_owner);
-
-    assert_eq!(
-        client.fetch_account_owner(&to_string(env, "my-account")),
-        new_owner
-    );
-}
-
-#[test]
 fn update_account_address() {
     let (registry, _addr) = setup_with_registered_account(11);
     let env = registry.env();
@@ -290,7 +274,7 @@ fn update_nonexistent_account() {
 
     assert_eq!(
         client
-            .try_update_account_owner(&to_string(env, "nonexistent"), &Address::generate(env))
+            .try_update_account_address(&to_string(env, "nonexistent"), &fund_account(env, 16))
             .unwrap_err(),
         Ok(Error::NoSuchAccountRegistered)
     );
@@ -313,11 +297,11 @@ fn non_owner_without_manager_fails() {
     let non_owner = Address::generate(env);
     registry.mock_auth_for(
         &non_owner,
-        "update_account_owner",
-        (&to_string(env, "my-account"), &Address::generate(env)),
+        "flag_account",
+        (&to_string(env, "my-account"), true),
     );
     assert!(client
-        .try_update_account_owner(&to_string(env, "my-account"), &Address::generate(env))
+        .try_flag_account(&to_string(env, "my-account"), &true)
         .is_err());
 }
 
@@ -356,74 +340,6 @@ fn setup_managed_with_account<'a>(seed: u8) -> (Registry<'a>, Address, Address) 
     let manager = registry.client().manager().unwrap();
     assert_ne!(owner, manager);
     (registry, owner, manager)
-}
-
-#[test]
-fn update_account_owner_emits_event_with_owner_operator() {
-    let registry = Registry::new_non_root_unmanaged();
-    let env = registry.env();
-    let client = registry.client();
-    let owner = Address::generate(env);
-    env.mock_all_auths();
-    client.register_account(
-        &to_string(env, "my-account"),
-        &fund_account(env, 20),
-        &owner,
-    );
-
-    let new_owner = Address::generate(env);
-    client.update_account_owner(&to_string(env, "my-account"), &new_owner);
-
-    assert_emitted(
-        env,
-        &registry,
-        &UpdateAccountOwner {
-            account_name: to_string(env, "my-account"),
-            new_owner,
-            operator: owner,
-        },
-    );
-}
-
-#[test]
-fn update_account_owner_by_manager_records_manager_as_operator() {
-    let (registry, owner, manager) = setup_managed_with_account(21);
-    let env = registry.env();
-    let client = registry.client();
-
-    let new_owner = Address::generate(env);
-    env.mock_all_auths();
-    client.update_account_owner(&to_string(env, "my-account"), &new_owner);
-
-    let auths = env.auths();
-    assert!(auths.iter().any(|(a, _)| *a == manager));
-    assert!(auths.iter().all(|(a, _)| *a != owner));
-
-    assert_emitted(
-        env,
-        &registry,
-        &UpdateAccountOwner {
-            account_name: to_string(env, "my-account"),
-            new_owner: new_owner.clone(),
-            operator: manager,
-        },
-    );
-    assert_eq!(
-        client.fetch_account_owner(&to_string(env, "my-account")),
-        new_owner
-    );
-}
-
-#[test]
-fn update_account_owner_preserves_address() {
-    let (registry, addr) = setup_with_registered_account(22);
-    let env = registry.env();
-    let client = registry.client();
-
-    env.mock_all_auths();
-    client.update_account_owner(&to_string(env, "my-account"), &Address::generate(env));
-
-    assert_eq!(client.fetch_account_id(&to_string(env, "my-account")), addr);
 }
 
 #[test]
