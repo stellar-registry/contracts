@@ -111,6 +111,10 @@ pub trait AccountRegistrable {
     /// if set) and `account_address`'s consent: its auth, or its unexpired
     /// `preauthorize_account` for this name and owner. No separate consent is
     /// needed when `account_address` is the one already authorizing.
+    ///
+    /// Consent covers registration only. After that the owner controls the
+    /// name and can transfer it with `update_account_owner` without the
+    /// address's involvement.
     fn register_account(
         env: &Env,
         account_name: soroban_sdk::String,
@@ -200,7 +204,9 @@ pub trait AccountRegistrable {
 #[contracttrait]
 pub trait AccountManageable {
     /// Update the owner of a registered account name.
-    /// Requires current owner auth, or manager auth if manager is set.
+    /// Requires current owner auth, or manager auth if manager is set. The
+    /// named address isn't involved, and a pending preauth naming the old owner
+    /// no longer matches.
     fn update_account_owner(
         env: &Env,
         account_name: soroban_sdk::String,
