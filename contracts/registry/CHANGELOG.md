@@ -4,6 +4,20 @@ All notable changes to the `registry` contract are documented here. Versions
 are the wasm versions published to the Stellar Registry; the format follows
 [Keep a Changelog](https://keepachangelog.com).
 
+## [0.9.0] - 2026-11-19
+
+### 🚀 Features
+
+- *(registry)* Cap account preauth lifetime at ~7 days (#80)
+
+### 🐛 Bug Fixes
+
+- *(registry)* Don't bump own instance TTL in resolve_subregistry (#73)
+
+### 📚 Documentation
+
+- The owner, not the named address, controls an account name after registration (#85)
+
 ## [0.8.0] - 2026-10-20
 
 ### 🚀 Features
