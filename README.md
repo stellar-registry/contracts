@@ -33,6 +33,12 @@ The `feat/registry-tansu-manager` branch additionally contains
 - Deploy published contracts to the blockchain
 - Retrieve deployment statistics for contracts
 - Manage contract ownership and redeployment
+- Name accounts (G-addresses and smart accounts)
+
+A named account's address must consent to being named under a specific
+owner, but only at registration. After that the owner controls the name: it
+can rename it, point it at a new address (with that address's consent), or
+transfer it to a new owner without the address's involvement.
 
 It separates **Wasm publication** (reusable code), **contract deployment**
 (named instances), and **local installation** (CLI aliases handled by the
